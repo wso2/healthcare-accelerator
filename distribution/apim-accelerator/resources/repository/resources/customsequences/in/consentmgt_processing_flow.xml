@@ -1,0 +1,6 @@
+<sequence xmlns="http://ws.apache.org/ns/synapse" name="consentmgt_processing_flow">
+    <class name="org.wso2.healthcare.apim.consentmgt.mediation.FHIRConsentManagementImpl"/>
+    <log level="custom" category="DEBUG">
+        <property name="INFLOW_MEDIATION" value="Consent mgt and decision processing mediation executed"/>
+    </log>
+</sequence>

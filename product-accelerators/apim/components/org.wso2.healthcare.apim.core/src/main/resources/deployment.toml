@@ -1,0 +1,139 @@
+################################## Open-Healthcare related configuration Starts here ###################################
+
+# Open rest API resources
+[[apim.rest_api.allowed_uri]]
+uri_path = "/api/healthcare/manage/registrations"
+http_method = "POST"
+
+[[apim.rest_api.allowed_uri]]
+uri_path = "/api/healthcare/manage/registrations/form"
+http_method = "POST"
+
+[[apim.rest_api.allowed_uri]]
+uri_path = "/api/healthcare/manage/validation/open"
+http_method = "POST"
+
+# Open-Healthcare cloud self-signup account datasource
+[[datasource]]
+id = "OHAccountDB"
+type = "mysql"
+url = "jdbc:mysql://localhost:3306/OHC_ACCOUNT_DB"
+username = "dbadmin"
+password = "dbadmin"
+driver = "com.mysql.jdbc.Driver"
+validationQuery = "SELECT 1"
+pool_options.validationInterval = "30000"
+pool_options.testOnBorrow = "true"
+pool_options.defaultAutoCommit = "true"
+pool_options.maxActive = "50"
+pool_options.maxWait = "60000"
+
+[[datasource]]
+id = "OHRegistrationDB"
+type = "mysql"
+url = "jdbc:mysql://localhost:3306/OHC_REGISTRATION_DB"
+username = "dbadmin"
+password = "dbadmin"
+driver = "com.mysql.jdbc.Driver"
+validationQuery = "SELECT 1"
+pool_options.validationInterval = "30000"
+pool_options.testOnBorrow = "true"
+pool_options.defaultAutoCommit = "true"
+pool_options.maxActive = "50"
+pool_options.maxWait = "60000"
+
+# Open-Healthcare Configurations
+[healthcare]
+
+[healthcare.saas.account]
+account_datasource = "jdbc/OHAccountDB"
+registration_datasource = "jdbc/OHRegistrationDB"
+
+[healthcare.saas.account.pii_store]
+store = "org.wso2.healthcare.apim.core.account.saas.InternalPIIStore"
+# Configure custom PII Store
+#store = "org.wso2.healthcare.apim.core.account.saas.WSO2RRSFPIIStore"
+#parameters.server_url = "https://wso2.com/services/rest/ws/allocatehealthcarelead.json"
+#parameters.username = "username"
+#parameters.password = "password"
+#parameters.retry_attempts = "4"
+#parameters.http_client_so_timeout = "-1"
+#parameters.http_client_connect_timeout = "-1"
+#parameters.http_client_max_total = "100"
+#parameters.http_client_default_max_per_route = "50"
+
+[healthcare.saas.signup]
+unique_email_account = true
+
+[healthcare.saas.signup.workflow]
+type = "BPMN"
+process_definition_key = "OHAccountProvisioningWF"
+service_url = "https://localhost:9445/bpmn/"
+username = "admin"
+password = "admin"
+
+[healthcare.alert]
+# Alert types : log | publish (not supported ATM)
+type = "log"
+# Format of the log : structured | json
+log_format = "structured"
+escalation.enable = false
+[healthcare.alert.escalation.workflow]
+type = "BPMN"
+process_definition_key = "OHSomeName"
+service_url = "https://localhost:9445/bpmn/"
+username = "admin"
+password = "admin"
+
+[healthcare.captcha]
+enable = true
+# Google reCAPTCHA settings
+# reCaptcha API URL
+api_url="https://www.google.com/recaptcha/api.js"
+# reCaptcha verification URL
+verify_url="https://www.google.com/recaptcha/api/siteverify"
+# reCaptcha site key
+site_key="6Lc8THgUAAAAAPekxT991FGFXRrsiPCMNv5PwZHB"
+# reCaptcha secret key
+secret_key="6Lc8THgUAAAAAEu83iOwSin_CSt6gqe97aa7EGFd"
+
+[healthcare.fhir]
+server_name = "WSO2 Open-healthcare Sandbox"
+server_version = "1.0.0"
+
+[healthcare.apihub.cache]
+enable=false
+#expiry time in seconds (default: 300)
+expiry=300
+capacity=10
+
+[healthcare.apim.throttling]
+#Disable standard product throttle policies in tenants (does not affect super tenant)
+disable_standard_product_throttle_policies = false
+
+[[healthcare.apim.throttling.tier.application]]
+name = "5PerMin"
+display_name = "5PerMin"
+description = "5 requests per minute"
+policy.type = "requestCount"
+policy.limit.request_count = "5"
+policy.limit.unit_time = "1"
+policy.limit.time_unit = "min"
+
+[[healthcare.apim.throttling.tier.application]]
+name = "10PerMin"
+display_name = "10PerMin"
+description = "10 requests per minute"
+policy.type = "requestCount"
+policy.limit.request_count = "10"
+policy.limit.unit_time = "1"
+policy.limit.time_unit = "min"
+
+[[healthcare.apim.throttling.tier.application]]
+name = "15PerMin"
+display_name = "15PerMin"
+description = "15 requests per minute"
+policy.type = "requestCount"
+policy.limit.request_count = "15"
+policy.limit.unit_time = "1"
+policy.limit.time_unit = "min"
