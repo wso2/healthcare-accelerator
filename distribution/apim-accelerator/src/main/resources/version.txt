@@ -1,0 +1,1 @@
+WSO2 Open Healthcare API Manager 4.2.0 Accelerator - v${project.version}

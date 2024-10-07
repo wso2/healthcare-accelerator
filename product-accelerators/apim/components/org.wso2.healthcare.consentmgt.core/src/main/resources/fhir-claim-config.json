@@ -1,0 +1,530 @@
+[
+  {
+    "Resource": "Patient",
+    "Purpose": {
+      "name": "Patient data access",
+      "description": "Used for accessing patient data",
+      "group": "Patient",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    },
+    "AttributeList": [
+      {
+        "name": "identifier",
+        "claimUri": "http://wso2.org/claims/fhir/patient/identifier",
+        "displayName": "Patient Identifier",
+        "description": "Identifier of the patient",
+        "mappedAttribute": "Patient.identifier"
+      },
+      {
+        "name": "active",
+        "claimUri": "http://wso2.org/claims/fhir/patient/active",
+        "displayName": "Patient active",
+        "description": "Active status of the patient",
+        "mappedAttribute": "Patient.active"
+      },
+      {
+        "name": "name",
+        "claimUri": "http://wso2.org/claims/fhir/patient/name",
+        "displayName": "Patient Name",
+        "description": "Name of the patient",
+        "mappedAttribute": "Patient.name"
+      },
+      {
+        "name": "telecom",
+        "claimUri": "http://wso2.org/claims/fhir/patient/telecom",
+        "displayName": "Patient Telecom",
+        "description": "Telecom of the patient",
+        "mappedAttribute": "Patient.telecom"
+      },
+      {
+        "name": "gender",
+        "claimUri": "http://wso2.org/claims/fhir/patient/gender",
+        "displayName": "Patient Gender",
+        "description": "Gender of the patient",
+        "mappedAttribute": "Patient.gender"
+      },
+      {
+        "name": "birthDate",
+        "claimUri": "http://wso2.org/claims/fhir/patient/birthDate",
+        "displayName": "Patient BirthDate",
+        "description": "BirthDate of the patient",
+        "mappedAttribute": "Patient.birthDate"
+      },
+      {
+        "name": "deceasedBoolean",
+        "claimUri": "http://wso2.org/claims/fhir/patient/deceasedBoolean",
+        "displayName": "Patient DeceasedBoolean",
+        "description": "DeceasedBoolean of the patient",
+        "mappedAttribute": "Patient.deceasedBoolean"
+      },
+      {
+        "name": "deceasedDateTime",
+        "claimUri": "http://wso2.org/claims/fhir/patient/deceasedDateTime",
+        "displayName": "Patient DeceasedDateTime",
+        "description": "DeceasedDateTime of the patient",
+        "mappedAttribute": "Patient.deceasedDateTime"
+      },
+      {
+        "name": "address",
+        "claimUri": "http://wso2.org/claims/fhir/patient/address",
+        "displayName": "Patient Address",
+        "description": "Address of the patient",
+        "mappedAttribute": "Patient.address"
+      },
+      {
+        "name": "maritalStatus",
+        "claimUri": "http://wso2.org/claims/fhir/patient/maritalStatus",
+        "displayName": "Patient MaritalStatus",
+        "description": "MaritalStatus of the patient",
+        "mappedAttribute": "Patient.maritalStatus"
+      },
+      {
+        "name": "multipleBirthBoolean",
+        "claimUri": "http://wso2.org/claims/fhir/patient/multipleBirthBoolean",
+        "displayName": "Patient MultipleBirthBoolean",
+        "description": "MultipleBirthBoolean of the patient",
+        "mappedAttribute": "Patient.multipleBirthBoolean"
+      },
+      {
+        "name": "multipleBirthInteger",
+        "claimUri": "http://wso2.org/claims/fhir/patient/multipleBirthInteger",
+        "displayName": "Patient MultipleBirthInteger",
+        "description": "MultipleBirthInteger of the patient",
+        "mappedAttribute": "Patient.multipleBirthInteger"
+      },
+      {
+        "name": "photo",
+        "claimUri": "http://wso2.org/claims/fhir/patient/photo",
+        "displayName": "Patient photo",
+        "description": "Photo of the patient",
+        "mappedAttribute": "Patient.photo"
+      },
+      {
+        "name": "contact",
+        "claimUri": "http://wso2.org/claims/fhir/patient/contact",
+        "displayName": "Patient contact",
+        "description": "Contact of the patient",
+        "mappedAttribute": "Patient.contact"
+      },
+      {
+        "name": "communication",
+        "claimUri": "http://wso2.org/claims/fhir/patient/communication",
+        "displayName": "Patient communication",
+        "description": "communication of the patient",
+        "mappedAttribute": "Patient.communication"
+      },
+      {
+        "name": "generalPractitioner",
+        "claimUri": "http://wso2.org/claims/fhir/patient/generalPractitioner",
+        "displayName": "Patient generalPractitioner",
+        "description": "General Practitioner of the patient",
+        "mappedAttribute": "Patient.generalPractitioner"
+      },
+      {
+        "name": "managingOrganization",
+        "claimUri": "http://wso2.org/claims/fhir/patient/managingOrganization",
+        "displayName": "Patient managingOrganization",
+        "description": "Managing organization of the patient",
+        "mappedAttribute": "Patient.managingOrganization"
+      },
+      {
+        "name": "link",
+        "claimUri": "http://wso2.org/claims/fhir/patient/link",
+        "displayName": "Patient link",
+        "description": "Link of the patient",
+        "mappedAttribute": "Patient.link"
+      }
+    ]
+  },
+  {
+    "Resource": "ExplanationOfBenefit",
+    "Purpose": {
+      "name": "EoB data access",
+      "description": "Used for accessing patient explanation of benefit data",
+      "group": "ExplanationOfBenefit",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Claim",
+    "Purpose": {
+      "name": "Claim data access",
+      "description": "Used for accessing patient claim data",
+      "group": "Claim",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Account",
+    "Purpose": {
+      "name": "Account data access",
+      "description": "Used for accessing patient account data",
+      "group": "Account",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "AllergyIntolerance",
+    "Purpose": {
+      "name": "AllergyIntolerance data access",
+      "description": "Used for accessing patient AllergyIntolerance data",
+      "group": "AllergyIntolerance",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Appointment",
+    "Purpose": {
+      "name": "Appointment data access",
+      "description": "Used for accessing patient Appointment data",
+      "group": "Appointment",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "CarePlan",
+    "Purpose": {
+      "name": "CarePlan data access",
+      "description": "Used for accessing patient CarePlan data",
+      "group": "CarePlan",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "CareTeam",
+    "Purpose": {
+      "name": "CareTeam data access",
+      "description": "Used for accessing patient CareTeam data",
+      "group": "CareTeam",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "ChargeItem",
+    "Purpose": {
+      "name": "ChargeItem data access",
+      "description": "Used for accessing patient ChargeItem data",
+      "group": "ChargeItem",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "ClinicalImpression",
+    "Purpose": {
+      "name": "ClinicalImpression data access",
+      "description": "Used for accessing patient ClinicalImpression data",
+      "group": "ClinicalImpression",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Communication",
+    "Purpose": {
+      "name": "Communication data access",
+      "description": "Used for accessing patient Communication data",
+      "group": "Communication",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "CommunicationRequest",
+    "Purpose": {
+      "name": "CommunicationRequest data access",
+      "description": "Used for accessing patient CommunicationRequest data",
+      "group": "CommunicationRequest",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Condition",
+    "Purpose": {
+      "name": "Condition data access",
+      "description": "Used for accessing patient Condition data",
+      "group": "Condition",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Contract",
+    "Purpose": {
+      "name": "Contract data access",
+      "description": "Used for accessing patient Contract data",
+      "group": "Contract",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Coverage",
+    "Purpose": {
+      "name": "Coverage data access",
+      "description": "Used for accessing patient Coverage data",
+      "group": "Coverage",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "CoverageEligibilityRequest",
+    "Purpose": {
+      "name": "CoverageEligibilityRequest data access",
+      "description": "Used for accessing patient CoverageEligibilityRequest data",
+      "group": "CoverageEligibilityRequest",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Device",
+    "Purpose": {
+      "name": "Device data access",
+      "description": "Used for accessing patient Device data",
+      "group": "Device",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "DeviceRequest",
+    "Purpose": {
+      "name": "DeviceRequest data access",
+      "description": "Used for accessing patient DeviceRequest data",
+      "group": "DeviceRequest",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "DeviceUseStatement",
+    "Purpose": {
+      "name": "DeviceUseStatement data access",
+      "description": "Used for accessing patient DeviceUseStatement data",
+      "group": "DeviceUseStatement",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "DiagnosticReport",
+    "Purpose": {
+      "name": "DiagnosticReport data access",
+      "description": "Used for accessing patient DiagnosticReport data",
+      "group": "DiagnosticReport",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Encounter",
+    "Purpose": {
+      "name": "Encounter data access",
+      "description": "Used for accessing patient Encounter data",
+      "group": "Encounter",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "EnrollmentRequest",
+    "Purpose": {
+      "name": "EnrollmentRequest data access",
+      "description": "Used for accessing patient EnrollmentRequest data",
+      "group": "EnrollmentRequest",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "FamilyMemberHistory",
+    "Purpose": {
+      "name": "FamilyMemberHistory data access",
+      "description": "Used for accessing patient FamilyMemberHistory data",
+      "group": "FamilyMemberHistory",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Goal",
+    "Purpose": {
+      "name": "Goal data access",
+      "description": "Used for accessing patient Goal data",
+      "group": "Goal",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "ImagingStudy",
+    "Purpose": {
+      "name": "ImagingStudy data access",
+      "description": "Used for accessing patient ImagingStudy data",
+      "group": "ImagingStudy",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Immunization",
+    "Purpose": {
+      "name": "Immunization data access",
+      "description": "Used for accessing patient Immunization data",
+      "group": "Immunization",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "MeasureReport",
+    "Purpose": {
+      "name": "MeasureReport data access",
+      "description": "Used for accessing patient MeasureReport data",
+      "group": "MeasureReport",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "MedicationAdministration",
+    "Purpose": {
+      "name": "MedicationAdministration data access",
+      "description": "Used for accessing patient MedicationAdministration data",
+      "group": "MedicationAdministration",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "MedicationDispense",
+    "Purpose": {
+      "name": "MedicationDispense data access",
+      "description": "Used for accessing patient MedicationDispense data",
+      "group": "MedicationDispense",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "MedicationRequest",
+    "Purpose": {
+      "name": "MedicationRequest data access",
+      "description": "Used for accessing patient MedicationRequest data",
+      "group": "MedicationRequest",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "MedicationStatement",
+    "Purpose": {
+      "name": "MedicationStatement data access",
+      "description": "Used for accessing patient MedicationStatement data",
+      "group": "MedicationStatement",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "MolecularSequence",
+    "Purpose": {
+      "name": "MolecularSequence data access",
+      "description": "Used for accessing patient MolecularSequence data",
+      "group": "MolecularSequence",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "NutritionOrder",
+    "Purpose": {
+      "name": "NutritionOrder data access",
+      "description": "Used for accessing patient NutritionOrder data",
+      "group": "NutritionOrder",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Observation",
+    "Purpose": {
+      "name": "Observation data access",
+      "description": "Used for accessing patient Observation data",
+      "group": "Observation",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Procedure",
+    "Purpose": {
+      "name": "Procedure data access",
+      "description": "Used for accessing patient Procedure data",
+      "group": "Procedure",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Provenance",
+    "Purpose": {
+      "name": "Provenance data access",
+      "description": "Used for accessing patient Provenance data",
+      "group": "Provenance",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "RelatedPerson",
+    "Purpose": {
+      "name": "RelatedPerson data access",
+      "description": "Used for accessing patient RelatedPerson data",
+      "group": "RelatedPerson",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "RiskAssessment",
+    "Purpose": {
+      "name": "RiskAssessment data access",
+      "description": "Used for accessing patient RiskAssessment data",
+      "group": "RiskAssessment",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "Specimen",
+    "Purpose": {
+      "name": "Specimen data access",
+      "description": "Used for accessing patient Specimen data",
+      "group": "Specimen",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  },
+  {
+    "Resource": "VisionPrescription",
+    "Purpose": {
+      "name": "VisionPrescription data access",
+      "description": "Used for accessing patient VisionPrescription data",
+      "group": "VisionPrescription",
+      "groupType": "OH_CONSENT_GROUP",
+      "mandatory": false
+    }
+  }
+]
