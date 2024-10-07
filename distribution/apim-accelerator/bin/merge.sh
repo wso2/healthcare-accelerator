@@ -1,7 +1,7 @@
 #!/bin/bash
 # ------------------------------------------------------------------------
 #
-# Copyright (c) 2021, WSO2 Inc. (http://www.wso2.com). All Rights Reserved.
+# Copyright (c) 2024, WSO2 Inc. (http://www.wso2.com). All Rights Reserved.
 #
 # This software is the property of WSO2 Inc. and its suppliers, if any.
 # Dissemination of any information or reproduction of any material contained
@@ -71,18 +71,11 @@ fi
 
 # backup original product files to the audit folder
 echo -e "[INFO] Backup original product files.."
-#cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/accountrecoveryendpoint/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/accountrecoveryendpoint 2>/dev/null
-#cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/authenticationendpoint/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/authenticationendpoint 2>/dev/null
-#cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/api#openhealthcare#consent-mgt*/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/api#openhealthcare#consent-mgt 2>/dev/null
+cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/accountrecoveryendpoint/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/accountrecoveryendpoint 2>/dev/null
+cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/authenticationendpoint/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/authenticationendpoint 2>/dev/null
 cp "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/conf 2>/dev/null
 cp "${WSO2_OH_APIM_HOME}"/repository/conf/claim-config.xml "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/conf 2>/dev/null
 cp "${WSO2_OH_APIM_HOME}"/repository/conf/log4j2.properties "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/conf 2>/dev/null
-#cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/jaggeryapps/admin/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/jaggeryapps/admin 2>/dev/null
-#cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/jaggeryapps/devportal/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/jaggeryapps/devportal 2>/dev/null
-
-# clean the extracted webapps
-echo -e "[INFO] Clean up extracted webapps.."
-#rm -rf "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/accountrecoveryendpoint/ "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/authenticationendpoint/ "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/api#openhealthcare#consent-mgt*/
 
 # adding the OH artifacts to the product pack
 echo -e "[INFO] Copying Open Healthcare artifacts.."
@@ -132,10 +125,6 @@ then
     # code if found
     echo -e "[WARN] oauth configuration already exist"
 fi
-#else
-    # code if not found
-#    echo -e "\n[oauth]\nshow_display_name_in_consent_page = true"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-#fi
 
 if grep -Fxq "[oauth.grant_type.authorization_code]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
 then
@@ -414,16 +403,6 @@ then
 else
     sed -i -e "s|<Scopes>|${OFFLINE_ACCESS_SCOPE}|g" "${WSO2_OH_APIM_HOME}"/repository/conf/identity/oidc-scope-config.xml
 fi
-
-## Customize title of Publisher portal
-#PUBLISHER_TITLE="<title>[Publisher Portal]WSO2 OH</title>"
-#if grep -Fq '<title>[Publisher Portal]WSO2 OH</title>' "${WSO2_OH_APIM_HOME}"/repository/deployment/server/jaggeryapps/publisher/site/public/pages/index.jag
-#then
-#    # do nothing
-#    echo -e "[WARN] Publisher title is already updated"
-#else
-#    sed -i "" -e "s|<title>\[Publisher Portal\]WSO2 APIM</title>|${PUBLISHER_TITLE}|g" "${WSO2_OH_APIM_HOME}"/repository/deployment/server/jaggeryapps/publisher/site/public/pages/index.jag
-#fi
 
 echo -e "[INFO] WSO2 Open Healthcare APIM Accelerator is successfully applied"
 
