@@ -20,7 +20,7 @@
           xsi:schemaLocation="http://maven.apache.org/plugins/maven-assembly-plugin/assembly/1.1.2 http://maven.apache.org/xsd/assembly-1.1.2.xsd">
     <id>oh.apim.accelerator</id>
     <includeBaseDirectory>true</includeBaseDirectory>
-    <baseDirectory>wso2oh-apim-accelerator-${project.version}</baseDirectory>
+    <baseDirectory>wso2-hcam-accelerator-${project.version}</baseDirectory>
 
     <formats>
         <format>zip</format>
@@ -31,11 +31,16 @@
 	    <outputDirectory>bin</outputDirectory>
 	    <includes>
                 <include>**/*.sh</include>
+                <include>**/*.toml</include>
                 <include>wso2update_darwin</include>
                 <include>wso2update_linux</include>
                 <include>wso2update_windows.exe</include>
             </includes>
             <fileMode>755</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>target/dist/conf</directory>
+            <outputDirectory>conf</outputDirectory>
         </fileSet>
         <fileSet>
             <directory>target/dist/carbon-home</directory>

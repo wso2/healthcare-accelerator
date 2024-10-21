@@ -15,7 +15,7 @@
 Running `merge.sh` script creates a audit log folder in the product home. Structure of it looks like below;
 
 ```sh
-oh-accelerator
+hc-accelerator
 ├── backup
 │   ├── conf
 │   ├── jaggeryapps
@@ -31,7 +31,7 @@ Mon May 31 22:01:55 +0530 2021 - john - WSO2 Healthcare API Manager 4.0.0 Accele
 ## U2 Update Tool
 By default, U2 update related files are added in the build.
 ```sh
-oh-accelerator
+hc-accelerator
 ├── LICENSE.txt
 │   ├── bin
 │   ├── update
