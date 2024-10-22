@@ -1,0 +1,10 @@
+# Enable or disable auto-generation of the FHIR capability statement
+enable_fhir_metadata_endpoint = true
+# Enable or disable the well-known endpoint for OAuth 2.0 discovery
+enable_well_known_endpoint = true
+# Enable or disable the SMART on FHIR features
+enable_smart_on_fhir = true
+# Enable or disable developer sign-up and app creation approval
+enable_developer_workflow = false
+# Enable or disable the healthcare theme
+enable_healthcare_theme = true

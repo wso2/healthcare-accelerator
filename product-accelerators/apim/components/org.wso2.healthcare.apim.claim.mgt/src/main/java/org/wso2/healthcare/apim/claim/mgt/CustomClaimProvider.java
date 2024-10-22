@@ -120,15 +120,13 @@ public class CustomClaimProvider implements ClaimProvider {
                 throw new OpenHealthcareException("Configured claim URL: " + claimUrl + " does not match with " +
                         "available Local claims.");
             }
-            //receive the claim
-            String patientId = claimIssuer.getUserClaims(userName, tenantDomain, claimUrl);
+            //receive the fhirUser claim
             String fhirUserId = claimIssuer.getUserClaims(userName, tenantDomain, fhirUserMappedLocalClaim);
             String fhirUserClaimUrl =
                     APIUtil.getGatewayendpoint(ClaimMgtConstants.GATEWAY_TRANSPORT, tenantDomain) + fhirUserClaimContext + "/" +
                             fhirUserId;
             //All the claims which added to the map will be inserted in the ID token
-            if (patientId != null) {
-                additionalClaims.put(claimMgtConfig.getPatientIdKey(), patientId);
+            if (fhirUserId != null) {
                 additionalClaims.put(ClaimMgtConstants.FHIRUSER_KEY, fhirUserClaimUrl);
             }
         } catch (OpenHealthcareException | UserStoreException | APIManagementException e) {

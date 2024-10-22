@@ -55,9 +55,20 @@ else
   echo -e "[INFO] Valid carbon product path found";
 fi
 
-# create the oh-accelerator folder in product home, if not exist
+# Reading the config.toml file
+config_toml_file="${ACCELERATOR_HOME}"/conf/config.toml
+
+# Read values from the TOML file]
+healthcare_theme_enabled=$(grep -E '^enable_healthcare_theme = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
+
+metadata_ep_enabled=$(grep -E '^enable_fhir_metadata_endpoint = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
+well_known_ep_enabled=$(grep -E '^enable_well_known_endpoint = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
+smart_on_fhir_enabled=$(grep -E '^enable_smart_on_fhir = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
+developer_workflow_enabled=$(grep -E '^enable_developer_workflow = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
+
+# create the hc-accelerator folder in product home, if not exist
 WSO2_OH_ACCELERATOR_VERSION=$(cat "${ACCELERATOR_HOME}"/version.txt)
-WSO2_OH_ACCELERATOR_AUDIT="${WSO2_OH_APIM_HOME}"/oh-accelerator
+WSO2_OH_ACCELERATOR_AUDIT="${WSO2_OH_APIM_HOME}"/hc-accelerator
 WSO2_OH_ACCELERATOR_AUDIT_BACKUP="${WSO2_OH_ACCELERATOR_AUDIT}"/backup
 if [ ! -d  "${WSO2_OH_ACCELERATOR_AUDIT}" ]; then
    mkdir -p "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"
@@ -71,15 +82,39 @@ fi
 
 # backup original product files to the audit folder
 echo -e "[INFO] Backup original product files.."
-cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/accountrecoveryendpoint/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/accountrecoveryendpoint 2>/dev/null
-cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/authenticationendpoint/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/authenticationendpoint 2>/dev/null
-cp "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/conf 2>/dev/null
-cp "${WSO2_OH_APIM_HOME}"/repository/conf/claim-config.xml "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/conf 2>/dev/null
-cp "${WSO2_OH_APIM_HOME}"/repository/conf/log4j2.properties "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/conf 2>/dev/null
+if [ -z "$(find "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}/webapps" -mindepth 1 -print -quit)" ]; then
+  cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/accountrecoveryendpoint/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/accountrecoveryendpoint 2>/dev/null
+  cp -R "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/authenticationendpoint/ "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/authenticationendpoint 2>/dev/null
+  cp "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/conf 2>/dev/null
+  cp "${WSO2_OH_APIM_HOME}"/repository/conf/claim-config.xml "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/conf 2>/dev/null
+else
+  echo -e "[INFO] Backup files already exist in the audit folder"
+fi
 
-# adding the OH artifacts to the product pack
 echo -e "[INFO] Copying Open Healthcare artifacts.."
-cp -R "${ACCELERATOR_HOME}"/carbon-home/* "${WSO2_OH_APIM_HOME}"/
+# adding the OH artifacts to the product pack
+cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/components/* "${WSO2_OH_APIM_HOME}"/repository/components
+cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/resources/* "${WSO2_OH_APIM_HOME}"/repository/resources
+cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/deployment/server/synapse-configs/* "${WSO2_OH_APIM_HOME}"/repository/deployment/server/synapse-configs
+if [ "${healthcare_theme_enabled}" == "true" ]; then
+  cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/deployment/server/webapps/* "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/
+else
+  cp -R "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/* "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/
+fi
+
+if [ "${metadata_ep_enabled}" == "false" ]; then
+  find "${WSO2_OH_APIM_HOME}/repository/components/dropins" -type f -name "*org.wso2.healthcare.apim.conformance*" -exec rm -f {} \;
+  find "${WSO2_OH_APIM_HOME}/repository/components/dropins" -type f -name "*org.wso2.healthcare.apim.multitenancy*" -exec rm -f {} \;
+fi
+
+if [ "${smart_on_fhir_enabled}" == "false" ]; then
+  find "${WSO2_OH_APIM_HOME}/repository/components" -type f -name "*org.wso2.healthcare.apim.scopemgt*" -exec rm -f {} \;
+  find "${WSO2_OH_APIM_HOME}/repository/components" -type f -name "*org.wso2.healthcare.apim.tokenmgt*" -exec rm -f {} \;
+fi
+
+if [ "${developer_workflow_enabled}" == "false" ]; then
+  find "${WSO2_OH_APIM_HOME}/repository/components/lib" -type f -name "*org.wso2.healthcare.apim.workflow.extensions*" -exec rm -f {} \;
+fi
 
 # adding configurations to deployment.toml file
 echo -e "[INFO] Adding configurations to deployment.toml file"
@@ -102,140 +137,143 @@ else
     echo -e "\n[apim.jwt]\nenable = true\nencoding = \"base64\" # base64,base64url\nclaim_dialect = \"http://wso2.org/claims\"\nconvert_dialect = false\nheader = \"X-JWT-Assertion\"\nsigning_algorithm = \"SHA256withRSA\"\nenable_user_claims = true\nclaims_extractor_impl = \"org.wso2.carbon.apimgt.impl.token.ExtendedDefaultClaimsRetriever\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
 fi
 
-if grep -Fxq "[apim.oauth_config]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
+if [ "${smart_on_fhir_enabled}" == "true" ]; then
+  if grep -Fxq "[apim.oauth_config]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] apim.oauth_config configuration already exist"
+  else
+      # code if not found
+      echo -e "\n[apim.oauth_config]\n#enable_outbound_auth_header = false\n#auth_header = \"Authorization\"\n#revoke_endpoint = \"https://localhost:\${https.nio.port}/revoke\"\n#enable_token_encryption = false\n#enable_token_hashing = false\nallowed_scopes = [\"^device_.*\", \"openid\", \"fhirUser\", \"launch/patient\", \"offline_access\"]"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
+
+  if grep -Fxq "[apim.jwt.gateway_generator]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] apim.jwt.gateway_generator configuration already exist"
+  else
+      # code if not found
+      echo -e "\n[apim.jwt.gateway_generator]\nimpl = \"org.wso2.healthcare.apim.gateway.security.jwt.generator.HealthcareGatewayJWTGenerator\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
+
+  if grep -Fxq "[oauth]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] oauth configuration already exist"
+  fi
+
+  if grep -Fxq "[oauth.grant_type.authorization_code]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] oauth.grant_type.authorization_code configuration already exist"
+  else
+      # code if not found
+      echo -e "\n[oauth.grant_type.authorization_code]\ngrant_handler = \"org.wso2.healthcare.apim.tokenmgt.handlers.OpenHealthcareExtendedAuthorizationCodeGrantHandler\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
+
+  # custom code response type handler
+  if grep -Fxq "[[oauth.custom_response_type]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] oauth.custom_response_type configuration already exist"
+  else
+      # code if not found
+      echo -e "\n[[oauth.custom_response_type]]\nname =\"code\"\nclass = \"org.wso2.healthcare.apim.scopemgt.handlers.OpenHealthcareExtendedCodeResponseTypeHandler\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
+
+  # custom key validation handler
+  if grep -Fxq "[apim.key_manager]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
     # code if found
-    echo -e "[WARN] apim.oauth_config configuration already exist"
-else
+    echo -e "[WARN] apim.key_manager active configuration already exist"
+  else
     # code if not found
-    echo -e "\n[apim.oauth_config]\n#enable_outbound_auth_header = false\n#auth_header = \"Authorization\"\n#revoke_endpoint = \"https://localhost:\${https.nio.port}/revoke\"\n#enable_token_encryption = false\n#enable_token_hashing = false\nallowed_scopes = [\"^device_.*\", \"openid\", \"fhirUser\", \"launch/patient\", \"offline_access\"]"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
+    echo -e "\n[apim.key_manager]\nkey_validation_handler_impl = \"org.wso2.healthcare.apim.scopemgt.handlers.OpenHealthcareExtendedKeyValidationHandler\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
 
-if grep -Fxq "[apim.jwt.gateway_generator]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] apim.jwt.gateway_generator configuration already exist"
-else
-    # code if not found
-    echo -e "\n[apim.jwt.gateway_generator]\nimpl = \"org.wso2.healthcare.apim.gateway.security.jwt.generator.HealthcareGatewayJWTGenerator\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
+  # scopemgt config
+  if grep -Fxq "#[healthcare.identity.scopemgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.identity.scopemgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] healthcare.identity.scopemgt configuration already exist"
+  else
+      # code if not found
+      echo -e "\n[healthcare.identity.scopemgt]\nroles = [\"patient-read\", \"patient-write\", \"user-read\", \"user-write\"]\nenable_fhir_scope_to_wso2_scope_mapping = true"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
 
-if grep -Fxq "[oauth]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] oauth configuration already exist"
-fi
+  # shared scopes
+  if grep -Fxq "#[[healthcare.identity.scopemgt.shared_scopes]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[[healthcare.identity.scopemgt.shared_scopes]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] healthcare.identity.scopemgt.shared_scopes configuration already exist"
+  else
+      # code if not found
+     echo -e "\n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.c\"\nname = \"patient/*.c\"\nroles = \"patient-write\"\ndescription = \"This scope grants patients access to CREATE any fhir resource.\"
+     \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.r\"\nname = \"patient/*.r\"\nroles = \"patient-write,patient-read\"\ndescription = \"This scope grants patients access to READ any fhir resource.\"
+     \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.u\"\nname = \"patient/*.u\"\nroles = \"patient-write\"\ndescription = \"This scope grants patients access to UPDATE any fhir resource.\"
+     \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.d\"\nname = \"patient/*.d\"\nroles = \"patient-write\"\ndescription = \"This scope grants patients access to DELETE any fhir resource.\"
+     \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.s\"\nname = \"patient/*.s\"\nroles = \"patient-write,patient-read\"\ndescription = \"This scope grants patients access to SEARCH any fhir resource.\"
+     \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.c\"\nname = \"user/*.c\"\nroles = \"user-write\"\ndescription = \"This scope grants other users access to CREATE any fhir resource.\"
+     \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.r\"\nname = \"user/*.r\"\nroles = \"user-write,user-read\"\ndescription = \"This scope grants other users access to READ any fhir resource.\"
+     \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.u\"\nname = \"user/*.u\"\nroles = \"user-write\"\ndescription = \"This scope grants other users access to UPDATE any fhir resource.\"
+     \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.d\"\nname = \"user/*.d\"\nroles = \"user-write\"\ndescription = \"This scope grants other users access to DELETE any fhir resource.\"
+     \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.s\"\nname = \"user/*.s\"\nroles = \"user-write,user-read\"\ndescription = \"This scope grants other users access to SEARCH any fhir resource.\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
 
-if grep -Fxq "[oauth.grant_type.authorization_code]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] oauth.grant_type.authorization_code configuration already exist"
-else
-    # code if not found
-    echo -e "\n[oauth.grant_type.authorization_code]\ngrant_handler = \"org.wso2.healthcare.apim.tokenmgt.handlers.OpenHealthcareExtendedAuthorizationCodeGrantHandler\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
+  if grep -Fxq "#[healthcare.identity.claims]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.identity.claims]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] healthcare.identity.claims configuration already exist"
+  else
+      # code if not found
+      echo -e "\n#[healthcare.identity.claims]\n#patient_id_claim_uri = \"http://wso2.org/claims/patientId\"\n#patient_id_key = \"patientId\"\n#fhirUser_resource_url_context = \"/r4/Patient\"\n#fhirUser_resource_id_claim_uri = \"http://wso2.org/claims/patientId\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
 
-# custom code response type handler
-if grep -Fxq "[[oauth.custom_response_type]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] oauth.custom_response_type configuration already exist"
-else
-    # code if not found
-    echo -e "\n[[oauth.custom_response_type]]\nname =\"code\"\nclass = \"org.wso2.healthcare.apim.scopemgt.handlers.OpenHealthcareExtendedCodeResponseTypeHandler\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  if grep -Fxq "#[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] healthcare.identity.claim.mgt configuration already exist"
+  else
+      # code if not found
+      echo -e "\n#[healthcare.identity.claim.mgt]\n#enable = false"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
 fi
+if [ "${healthcare_theme_enabled}" == "true" ]; then
+  if grep -Fxq "#[healthcare.deployment.webapps]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.deployment.webapps]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] healthcare.deployment.webapps configuration already exist"
+  else
+      # code if not found
+      echo -e "\n#[healthcare.deployment.webapps]\n#name = \"Open Healthcare\"\n#name_container_css = \"\"\n#terms_of_use = \"https://wso2.com/terms-of-use\"\n#privacy_policy = \"https://wso2.com/privacy-policy\"\n#cookie_policy = \"https://wso2.com/cookie-policy\"\n#logo = \"images/wso2-logo.svg\"\n#logoHeight = \"\"\n#logoWidth = \"\"\n#logo_container_css = \"\"\n#title = \"WSO2 Open Healthcare\"\n#favicon = \"libs/theme/assets/images/favicon.ico\"\n#footer = \"WSO2 Open Healthcare\"\n#footer_secondary_html = \"\"\n#main_color = \"#342382\"" | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
 
-# custom key validation handler
-if grep -Fxq "[apim.key_manager]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-  # code if found
-  echo -e "[WARN] apim.key_manager active configuration already exist"
-else
-  # code if not found
-  echo -e "\n[apim.key_manager]\nkey_validation_handler_impl = \"org.wso2.healthcare.apim.scopemgt.handlers.OpenHealthcareExtendedKeyValidationHandler\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
+  if grep -Fxq "#[healthcare.deployment.webapps.authenticationendpoint]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.deployment.webapps.authenticationendpoint]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] healthcare.deployment.webapps.authenticationendpoint configuration already exist"
+  else
+      # code if not found
+      echo -e "\n#[healthcare.deployment.webapps.authenticationendpoint]\n#enable_selfsignup = true\n#selfsignup_url = \"\"\n# Name of deployment to mentioned in the poicy disclaimer.\n# The result will be : Usage of <signin_disclaimer_portal_name> is subject to the Terms of Use, Privacy Policy, and Cookie Policy.\n#signin_disclaimer_portal_name=\"WSO2 Open Healthcare\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
 
-# scopemgt config
-if grep -Fxq "#[healthcare.identity.scopemgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.identity.scopemgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] healthcare.identity.scopemgt configuration already exist"
-else
-    # code if not found
-    echo -e "\n[healthcare.identity.scopemgt]\nroles = [\"patient-read\", \"patient-write\", \"user-read\", \"user-write\"]\nenable_fhir_scope_to_wso2_scope_mapping = true"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
+  if grep -Fxq "#[healthcare.deployment.webapps.accountrecovery]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.deployment.webapps.accountrecovery]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] healthcare.deployment.webapps.accountrecovery configuration already exist"
+  else
+      # code if not found
+      echo -e "\n#[healthcare.deployment.webapps.accountrecovery]\n#signup_flow.username_info_enable = false\n# Message to display at the end of successful self sign-up\n#signup_flow.success_message=\"User registration completed successfully\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
 
-# shared scopes
-if grep -Fxq "#[[healthcare.identity.scopemgt.shared_scopes]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[[healthcare.identity.scopemgt.shared_scopes]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] healthcare.identity.scopemgt.shared_scopes configuration already exist"
-else
-    # code if not found
-   echo -e "\n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.c\"\nname = \"patient/*.c\"\nroles = \"patient-write\"\ndescription = \"This scope grants patients access to CREATE any fhir resource.\"
-   \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.r\"\nname = \"patient/*.r\"\nroles = \"patient-write,patient-read\"\ndescription = \"This scope grants patients access to READ any fhir resource.\"
-   \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.u\"\nname = \"patient/*.u\"\nroles = \"patient-write\"\ndescription = \"This scope grants patients access to UPDATE any fhir resource.\"
-   \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.d\"\nname = \"patient/*.d\"\nroles = \"patient-write\"\ndescription = \"This scope grants patients access to DELETE any fhir resource.\"
-   \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"patient/*.s\"\nname = \"patient/*.s\"\nroles = \"patient-write,patient-read\"\ndescription = \"This scope grants patients access to SEARCH any fhir resource.\"
-   \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.c\"\nname = \"user/*.c\"\nroles = \"user-write\"\ndescription = \"This scope grants other users access to CREATE any fhir resource.\"
-   \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.r\"\nname = \"user/*.r\"\nroles = \"user-write,user-read\"\ndescription = \"This scope grants other users access to READ any fhir resource.\"
-   \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.u\"\nname = \"user/*.u\"\nroles = \"user-write\"\ndescription = \"This scope grants other users access to UPDATE any fhir resource.\"
-   \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.d\"\nname = \"user/*.d\"\nroles = \"user-write\"\ndescription = \"This scope grants other users access to DELETE any fhir resource.\"
-   \n[[healthcare.identity.scopemgt.shared_scopes]]\nkey = \"user/*.s\"\nname = \"user/*.s\"\nroles = \"user-write,user-read\"\ndescription = \"This scope grants other users access to SEARCH any fhir resource.\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
-
-if grep -Fxq "#[healthcare.identity.claims]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.identity.claims]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] healthcare.identity.claims configuration already exist"
-else
-    # code if not found
-    echo -e "\n#[healthcare.identity.claims]\n#patient_id_claim_uri = \"http://wso2.org/claims/patientId\"\n#patient_id_key = \"patientId\"\n#fhirUser_resource_url_context = \"/r4/Patient\"\n#fhirUser_resource_id_claim_uri = \"http://wso2.org/claims/patientId\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
-
-if grep -Fxq "#[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] healthcare.identity.claim.mgt configuration already exist"
-else
-    # code if not found
-    echo -e "\n#[healthcare.identity.claim.mgt]\n#enable = false"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
-
-if grep -Fxq "#[healthcare.deployment.webapps]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.deployment.webapps]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] healthcare.deployment.webapps configuration already exist"
-else
-    # code if not found
-    echo -e "\n#[healthcare.deployment.webapps]\n#name = \"Open Healthcare\"\n#name_container_css = \"\"\n#terms_of_use = \"https://wso2.com/terms-of-use\"\n#privacy_policy = \"https://wso2.com/privacy-policy\"\n#cookie_policy = \"https://wso2.com/cookie-policy\"\n#logo = \"images/wso2-logo.svg\"\n#logoHeight = \"\"\n#logoWidth = \"\"\n#logo_container_css = \"\"\n#title = \"WSO2 Open Healthcare\"\n#favicon = \"libs/theme/assets/images/favicon.ico\"\n#footer = \"WSO2 Open Healthcare\"\n#footer_secondary_html = \"\"\n#main_color = \"#342382\"" | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
-
-if grep -Fxq "#[healthcare.deployment.webapps.authenticationendpoint]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.deployment.webapps.authenticationendpoint]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] healthcare.deployment.webapps.authenticationendpoint configuration already exist"
-else
-    # code if not found
-    echo -e "\n#[healthcare.deployment.webapps.authenticationendpoint]\n#enable_selfsignup = true\n#selfsignup_url = \"\"\n# Name of deployment to mentioned in the poicy disclaimer.\n# The result will be : Usage of <signin_disclaimer_portal_name> is subject to the Terms of Use, Privacy Policy, and Cookie Policy.\n#signin_disclaimer_portal_name=\"WSO2 Open Healthcare\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
-
-if grep -Fxq "#[healthcare.deployment.webapps.accountrecovery]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.deployment.webapps.accountrecovery]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] healthcare.deployment.webapps.accountrecovery configuration already exist"
-else
-    # code if not found
-    echo -e "\n#[healthcare.deployment.webapps.accountrecovery]\n#signup_flow.username_info_enable = false\n# Message to display at the end of successful self sign-up\n#signup_flow.success_message=\"User registration completed successfully\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
-fi
-
-if grep -Fxq "#[[apim.devportal.application_attributes]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[[apim.devportal.application_attributes]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] apim.devportal.application_attributes configuration already exist"
-else
-    # code if not found
-    echo -e "\n#[[apim.devportal.application_attributes]]\n#required=true\n#hidden=false\n#name=\"Terms and Conditions Secure URL\"\n#description=\"Provide a secure URL where users can review your terms and conditions prior to authorizing access to their data.\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  if grep -Fxq "#[[apim.devportal.application_attributes]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[[apim.devportal.application_attributes]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  then
+      # code if found
+      echo -e "[WARN] apim.devportal.application_attributes configuration already exist"
+  else
+      # code if not found
+      echo -e "\n#[[apim.devportal.application_attributes]]\n#required=true\n#hidden=false\n#name=\"Terms and Conditions Secure URL\"\n#description=\"Provide a secure URL where users can review your terms and conditions prior to authorizing access to their data.\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+  fi
 fi
 
 if grep -Fxq "#[apim.sync_runtime_artifacts.gateway.skip_list]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[apim.sync_runtime_artifacts.gateway.skip_list]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
@@ -354,7 +392,7 @@ fi
 # adding configurations to claim-config.xml
 echo -e "[INFO] Adding configurations to repository/conf/claim-config.xml file"
 
-PATIENT_ID_CLAIM="\t<Dialect dialectURI=\"http://wso2.org/claims\">\n<Claim>\n<ClaimURI>http://wso2.org/claims/patientId</ClaimURI>\n<DisplayName>Patient ID</DisplayName>\n<AttributeID>patientId</AttributeID>\n<Description>PatientID</Description>\n<DisplayOrder>13</DisplayOrder>\n</Claim>\n"
+PATIENT_ID_CLAIM="\t<Dialect dialectURI=\"http://wso2.org/claims\">\n<Claim>\n<ClaimURI>http://wso2.org/claims/patientId</ClaimURI>\n<DisplayName>Patient ID</DisplayName>\n<AttributeID>patientId</AttributeID>\n<Description>PatientID</Description>\n<DisplayOrder>13</DisplayOrder>\n<SupportedByDefault />\n</Claim>\n"
 if grep -Fq '<ClaimURI>http://wso2.org/claims/patientId</ClaimURI>' "${WSO2_OH_APIM_HOME}"/repository/conf/claim-config.xml
 then
     # do nothing

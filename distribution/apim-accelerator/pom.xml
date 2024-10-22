@@ -32,6 +32,7 @@
     <packaging>pom</packaging>
 
     <build>
+        <finalName>wso2-hcam-accelerator-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -111,7 +112,7 @@
                 <artifactId>maven-antrun-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>prepare-wso2oh-apim-accelerator</id>
+                        <id>prepare-wso2hc-apim-accelerator</id>
                         <phase>process-resources</phase>
                         <goals>
                             <goal>run</goal>
@@ -155,19 +156,6 @@
                                     <!--Backend JWT generator-->
                                     <fileset dir="${basedir}/../../product-accelerators/apim/components/org.wso2.healthcare.apim.gateway.security.jwt.generator/target">
                                         <include name="org.wso2.healthcare.apim.gateway.security.jwt.generator-${project.version}.jar"/>
-                                    </fileset>
-                                    <!-- consent management feature-->
-                                    <fileset dir="${basedir}/../../product-accelerators/apim/components/org.wso2.healthcare.consentmgt.core/target">
-                                        <include name="org.wso2.healthcare.consentmgt.core-${project.version}.jar"/>
-                                    </fileset>
-                                    <fileset dir="${basedir}/../../product-accelerators/apim/components/org.wso2.healthcare.consentmgt.ui/target">
-                                        <include name="org.wso2.healthcare.consentmgt.ui-${project.version}.jar"/>
-                                    </fileset>
-                                    <fileset dir="${basedir}/../../product-accelerators/apim/components/org.wso2.healthcare.apim.consentmgt.mediation/target">
-                                        <include name="org.wso2.healthcare.apim.consentmgt.mediation-${project.version}.jar"/>
-                                    </fileset>
-                                    <fileset dir="${basedir}/../../product-accelerators/apim/components/org.wso2.healthcare.apim.notifier/target">
-                                        <include name="org.wso2.healthcare.apim.notifier-${project.version}.jar"/>
                                     </fileset>
                                 </copy>
 
@@ -291,14 +279,6 @@
                                             excludes="**/velocity_template.xml"/>
                                 </copy>
 
-                                <!--Add custom in sequences-->
-                                <copy
-                                        todir="${product_home}/carbon-home/repository/resources/customsequences/in">
-                                    <fileset
-                                            dir="${basedir}/../../distribution/apim-accelerator/resources/repository/resources/customsequences/in"
-                                            excludes="**/velocity_template.xml"/>
-                                </copy>
-
                                 <!--Add bin folder with merge.sh-->
                                 <copy
                                         todir="${product_home}/bin">
@@ -309,11 +289,11 @@
 
                                 <chmod dir="${product_home}/bin" perm="ugo+rx" includes="**/*.sh"/>
 
-                                <!--Add open healthcare db scripts -->
+                                <!--Add bin folder with merge.sh-->
                                 <copy
-                                        todir="${product_home}/dbscripts">
+                                        todir="${product_home}/conf">
                                     <fileset
-                                            dir="${basedir}/../../distribution/apim-accelerator/dbscripts"
+                                            dir="${basedir}/../../distribution/apim-accelerator/conf"
                                             includes="**"/>
                                 </copy>
 
