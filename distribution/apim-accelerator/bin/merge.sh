@@ -99,8 +99,6 @@ cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/deployment/server/synapse-con
 if [ "${healthcare_theme_enabled}" == "true" ]; then
   cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/deployment/server/webapps/* "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/
 else
-  rm -rf "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/authenticationendpoint
-  rm -rf "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/accountrecoveryendpoint
   cp -R "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/* "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/
 fi
 
@@ -116,10 +114,6 @@ fi
 
 if [ "${developer_workflow_enabled}" == "false" ]; then
   find "${WSO2_OH_APIM_HOME}/repository/components/lib" -type f -name "*org.wso2.healthcare.apim.workflow.extensions*" -exec rm -f {} \;
-fi
-
-if [ "${healthcare_theme_enabled}" == "false" ]; then
-  find "${WSO2_OH_APIM_HOME}/repository/deployment/server/jaggeryapps" -type d -name "healthcare" -exec rm -rf {} \;
 fi
 
 # adding configurations to deployment.toml file
