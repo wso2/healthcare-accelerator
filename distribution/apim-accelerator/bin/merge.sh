@@ -64,12 +64,11 @@ healthcare_theme_enabled=$(grep -E '^enable_healthcare_theme = ' "$config_toml_f
 metadata_ep_enabled=$(grep -E '^enable_fhir_metadata_endpoint = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
 well_known_ep_enabled=$(grep -E '^enable_well_known_endpoint = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
 smart_on_fhir_enabled=$(grep -E '^enable_smart_on_fhir = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
-consent_management_enabled=$(grep -E '^enable_consent_management = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
 developer_workflow_enabled=$(grep -E '^enable_developer_workflow = ' "$config_toml_file" | cut -d'=' -f2 | tr -d ' ')
 
-# create the oh-accelerator folder in product home, if not exist
+# create the hc-accelerator folder in product home, if not exist
 WSO2_OH_ACCELERATOR_VERSION=$(cat "${ACCELERATOR_HOME}"/version.txt)
-WSO2_OH_ACCELERATOR_AUDIT="${WSO2_OH_APIM_HOME}"/oh-accelerator
+WSO2_OH_ACCELERATOR_AUDIT="${WSO2_OH_APIM_HOME}"/hc-accelerator
 WSO2_OH_ACCELERATOR_AUDIT_BACKUP="${WSO2_OH_ACCELERATOR_AUDIT}"/backup
 if [ ! -d  "${WSO2_OH_ACCELERATOR_AUDIT}" ]; then
    mkdir -p "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"
@@ -103,11 +102,6 @@ else
   rm -rf "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/authenticationendpoint
   rm -rf "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/accountrecoveryendpoint
   cp -R "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/* "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/
-fi
-
-if [ "${consent_management_enabled}" == "false" ]; then
-  find "${WSO2_OH_APIM_HOME}/repository/components/dropins" -type f -name "*org.wso2.healthcare.consentmgt*" -exec rm -f {} \;
-  find "${WSO2_OH_APIM_HOME}/repository/components/dropins" -type f -name "*org.wso2.healthcare.apim.consentmgt*" -exec rm -f {} \;
 fi
 
 if [ "${metadata_ep_enabled}" == "false" ]; then

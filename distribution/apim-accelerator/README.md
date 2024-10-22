@@ -9,7 +9,7 @@
 1. Extract WSO2 APIM product and update the product. Let's call the installed location `<WSO2_APIM_HOME>`.
 2. Extract WSO2 Healthcare APIM Accelerator to `<WSO2_APIM_HOME>`. Let's call it `<WSO2_HC_APIM_ACC_HOME>`.
 3. Navigate to `<WSO2_HC_APIM_ACC_HOME>` directory and execute `./bin/merge.sh` command. This will copy the artifacts to the WSO2 APIM and add the required configurations.
-4. Navigate to `<WSO2_APIM_HOME>` directory and execute `./bin/wso2server.sh` to start the APIM server with WSO2 Healthcare Accelerator.
+4. Navigate to `<WSO2_APIM_HOME>` directory and execute `./bin/api-manager.sh` to start the APIM server with WSO2 Healthcare Accelerator.
 
 ## Audit Logs:
 Running `merge.sh` script creates a audit log folder in the product home. Structure of it looks like below;

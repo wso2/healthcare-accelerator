@@ -34,10 +34,6 @@
 
     <modules>
         <module>apim/components/org.wso2.healthcare.apim.core</module>
-        <module>apim/components/org.wso2.healthcare.consentmgt.core</module>
-        <module>apim/components/org.wso2.healthcare.consentmgt.ui</module>
-        <module>apim/components/org.wso2.healthcare.apim.consentmgt.mediation</module>
-        <module>apim/components/org.wso2.healthcare.apim.notifier</module>
         <module>apim/components/org.wso2.healthcare.apim.workflow.extensions</module>
         <module>apim/components/org.wso2.healthcare.apim.conformance</module>
         <module>apim/components/org.wso2.healthcare.apim.multitenancy</module>
@@ -46,7 +42,6 @@
         <module>apim/components/org.wso2.healthcare.apim.clientauth.jwt</module>
         <module>apim/components/org.wso2.healthcare.apim.scopemgt</module>
         <module>apim/components/org.wso2.healthcare.apim.tokenmgt</module>
-        <module>apim/webapps/org.wso2.healthcare.consentmgt.endpoint</module>
         <module>apim/apps/authentication-portal</module>
         <module>apim/apps/recovery-portal</module>
     </modules>
