@@ -3,4 +3,4 @@ Provides core functionality to streamline healthcare integration by enabling rap
 
 Currently WSO2 Healthcare Accelerator consists of following accelerator distributions:
 
-- [WSO2 Healthcare API Manager Accelerator](apim-accelerator/README.md)
+- [WSO2 Healthcare API Manager Accelerator](distribution/apim-accelerator/README.md)
