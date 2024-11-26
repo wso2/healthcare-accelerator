@@ -71,6 +71,7 @@ public class OpenHealthcareConfig {
     private Map<String, MailNotificationConfig> notificationMailConfig;
     private OrganizationConfig organizationConfig;
     private ScopeMgtConfig scopeMgtConfig;
+    private BackendAuthConfig backendAuthConfig;
 
     private OpenHealthcareConfig(TomlParseResult config) throws OpenHealthcareException {
         this.config = config;
@@ -153,6 +154,10 @@ public class OpenHealthcareConfig {
         return scopeMgtConfig;
     }
 
+    public BackendAuthConfig getBackendAuthConfig() {
+        return backendAuthConfig;
+    }
+
     private void parse(TomlParseResult config) throws OpenHealthcareException {
 
         secretResolver = SecretResolverFactory.create((OMElement) null, false);
@@ -183,6 +188,8 @@ public class OpenHealthcareConfig {
         organizationConfig = buildOrganizationconfig();
         //Parse scope mgt config
         scopeMgtConfig = buildScopeMgtConfig();
+        //Parse backend auth config
+        backendAuthConfig = buildBackendAuthConfig();
     }
 
     private AccountConfig buildAccountConfig() throws OpenHealthcareException {
@@ -570,6 +577,31 @@ public class OpenHealthcareConfig {
         }
         return scopeMgtConfig;
 
+    }
+
+    private BackendAuthConfig buildBackendAuthConfig() {
+        BackendAuthConfig backendAuthConfig = new BackendAuthConfig();
+        Object backendAuthObj = config.get("healthcare.backend.auth");
+        if (backendAuthObj instanceof TomlTable) {
+            TomlTable beAuthTable = (TomlTable) backendAuthObj;
+            backendAuthConfig.setEnableBackendAuth(Boolean.TRUE.equals(beAuthTable.getBoolean("enable")));
+            backendAuthConfig.setAuthEndpoint(beAuthTable.getString("token_endpoint"));
+            backendAuthConfig.setClientId(beAuthTable.getString("client_id"));
+            backendAuthConfig.setPrivateKeyAlias(beAuthTable.getString("private_key_alias"));
+            backendAuthConfig.setSSLEnabled(Boolean.TRUE.equals(beAuthTable.getBoolean("is_ssl_enabled")));
+            String privateKeyPass = beAuthTable.getString("keystore_password", () -> null);
+            if (privateKeyPass != null) {
+                backendAuthConfig.setTruststorePassword(resolveSecret(privateKeyPass));
+            }
+            if (backendAuthConfig.isSSLEnabled()) {
+                String secretKey = beAuthTable.getString("truststore_password", () -> null);
+                if (secretKey != null) {
+                    backendAuthConfig.setTruststorePassword(resolveSecret(secretKey));
+                }
+                backendAuthConfig.setSslCertAlias(beAuthTable.getString("ssl_cert_alias"));
+            }
+        }
+        return backendAuthConfig;
     }
 
     private char[] resolveSecret(String secret) {

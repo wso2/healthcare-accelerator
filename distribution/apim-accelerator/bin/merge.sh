@@ -229,6 +229,15 @@ if [ "${smart_on_fhir_enabled}" == "true" ]; then
       echo -e "\n#[healthcare.identity.claims]\n#patient_id_claim_uri = \"http://wso2.org/claims/patientId\"\n#patient_id_key = \"patientId\"\n#fhirUser_resource_url_context = \"/r4/Patient\"\n#fhirUser_resource_id_claim_uri = \"http://wso2.org/claims/patientId\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
   fi
 
+  if grep -Fxq "#[healthcare.backend.auth]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.backend.auth]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+    then
+        # code if found
+        echo -e "[WARN] healthcare.backend.auth configuration already exist"
+    else
+        # code if not found
+        echo -e "\n#[healthcare.backend.auth]\n#enable = true\n#token_endpoint = \"https://localhost:9443/oauth2/token\"\n#client_id = \"client_id\"\n#keystore_password = \"wso2carbon\"\n#private_key_alias = \"wso2carbon\"\n#is_ssl_enabled = true\n#truststore_password = \"wso2carbon\"\n#ssl_cert_alias = \"wso2carbon\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+    fi
+
   if grep -Fxq "#[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
   then
       # code if found
