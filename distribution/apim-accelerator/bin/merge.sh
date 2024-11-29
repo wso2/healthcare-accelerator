@@ -235,7 +235,7 @@ if [ "${smart_on_fhir_enabled}" == "true" ]; then
         echo -e "[WARN] healthcare.backend.auth configuration already exist"
     else
         # code if not found
-        echo -e "\n#[healthcare.backend.auth]\n#enable = true\n#token_endpoint = \"https://localhost:9443/oauth2/token\"\n#client_id = \"client_id\"\n#keystore_password = \"wso2carbon\"\n#private_key_alias = \"wso2carbon\"\n#is_ssl_enabled = true\n#truststore_password = \"wso2carbon\"\n#ssl_cert_alias = \"wso2carbon\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+        echo -e "\n[healthcare.backend.auth]\ntoken_endpoint = \"https://localhost:9443/oauth2/token\"\nclient_id = \"client_id\"\nclient_secret = \"client_secret\"\nprivate_key_alias = \"wso2carbon\"\nis_ssl_enabled = true"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
     fi
 
   if grep -Fxq "#[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml

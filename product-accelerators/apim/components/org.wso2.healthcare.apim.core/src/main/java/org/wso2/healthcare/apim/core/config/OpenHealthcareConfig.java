@@ -584,21 +584,13 @@ public class OpenHealthcareConfig {
         Object backendAuthObj = config.get("healthcare.backend.auth");
         if (backendAuthObj instanceof TomlTable) {
             TomlTable beAuthTable = (TomlTable) backendAuthObj;
-            backendAuthConfig.setEnableBackendAuth(Boolean.TRUE.equals(beAuthTable.getBoolean("enable")));
             backendAuthConfig.setAuthEndpoint(beAuthTable.getString("token_endpoint"));
             backendAuthConfig.setClientId(beAuthTable.getString("client_id"));
             backendAuthConfig.setPrivateKeyAlias(beAuthTable.getString("private_key_alias"));
             backendAuthConfig.setSSLEnabled(Boolean.TRUE.equals(beAuthTable.getBoolean("is_ssl_enabled")));
-            String privateKeyPass = beAuthTable.getString("keystore_password", () -> null);
-            if (privateKeyPass != null) {
-                backendAuthConfig.setTruststorePassword(resolveSecret(privateKeyPass));
-            }
-            if (backendAuthConfig.isSSLEnabled()) {
-                String secretKey = beAuthTable.getString("truststore_password", () -> null);
-                if (secretKey != null) {
-                    backendAuthConfig.setTruststorePassword(resolveSecret(secretKey));
-                }
-                backendAuthConfig.setSslCertAlias(beAuthTable.getString("ssl_cert_alias"));
+            String clientSecret = beAuthTable.getString("client_secret", () -> null);
+            if (clientSecret != null) {
+                backendAuthConfig.setClient_secret(resolveSecret(clientSecret));
             }
         }
         return backendAuthConfig;

@@ -18,24 +18,16 @@
 
 package org.wso2.healthcare.apim.core.config;
 
+/**
+ * Backend Auth Config. To facilitate PKJWT backend auth flow
+ */
 public class BackendAuthConfig {
 
-    private boolean enableBackendAuth;
     private String authEndpoint;
     private String clientId;
-    private char[] keystorePassword;
-    private char[] truststorePassword;
+    private char[] client_secret;
     private boolean isSSLEnabled;
     private String privateKeyAlias;
-    private String sslCertAlias;
-
-    public boolean isEnableBackendAuth() {
-        return enableBackendAuth;
-    }
-
-    public void setEnableBackendAuth(boolean enableBackendAuth) {
-        this.enableBackendAuth = enableBackendAuth;
-    }
 
     public String getAuthEndpoint() {
         return authEndpoint;
@@ -53,20 +45,12 @@ public class BackendAuthConfig {
         this.clientId = clientId;
     }
 
-    public char[] getKeystorePassword() {
-        return keystorePassword;
+    public char[] getClient_secret() {
+        return client_secret;
     }
 
-    public void setKeystorePassword(char[] keystorePassword) {
-        this.keystorePassword = keystorePassword;
-    }
-
-    public char[] getTruststorePassword() {
-        return truststorePassword;
-    }
-
-    public void setTruststorePassword(char[] truststorePassword) {
-        this.truststorePassword = truststorePassword;
+    public void setClient_secret(char[] client_secret) {
+        this.client_secret = client_secret;
     }
 
     public boolean isSSLEnabled() {
@@ -83,13 +67,5 @@ public class BackendAuthConfig {
 
     public void setPrivateKeyAlias(String privateKeyAlias) {
         this.privateKeyAlias = privateKeyAlias;
-    }
-
-    public String getSslCertAlias() {
-        return sslCertAlias;
-    }
-
-    public void setSslCertAlias(String sslCertAlias) {
-        this.sslCertAlias = sslCertAlias;
     }
 }

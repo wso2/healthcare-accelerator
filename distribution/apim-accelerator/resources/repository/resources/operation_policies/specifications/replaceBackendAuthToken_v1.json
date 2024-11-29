@@ -1,0 +1,27 @@
+{
+  "category": "Mediation",
+  "name": "replaceBackendAuthToken",
+  "version": "v1",
+  "displayName": "Replace Backend Auth Token",
+  "description": "This handler will replace backend Auth token with a token from external Auth server",
+  "applicableFlows": [
+    "request"
+  ],
+  "supportedGateways": [
+    "Synapse"
+  ],
+  "supportedApiTypes": [
+    "HTTP"
+  ],
+  "policyAttributes": [
+    {
+      "name": "authType",
+      "displayName": "Auth Type",
+      "description": "Type of Backend Auth Flow. Currently only PKJWT is supported",
+      "validationRegex": "^(pkjwt|client-credentials)$",
+      "type": "Enum",
+      "allowedValues" : ["pkjwt"],
+      "required": true
+    }
+  ]
+}
