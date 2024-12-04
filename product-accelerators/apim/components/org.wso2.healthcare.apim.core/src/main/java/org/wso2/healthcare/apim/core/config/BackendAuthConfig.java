@@ -23,11 +23,14 @@ package org.wso2.healthcare.apim.core.config;
  */
 public class BackendAuthConfig {
 
+    private String name;
     private String authEndpoint;
     private String clientId;
     private char[] client_secret;
     private boolean isSSLEnabled;
     private String privateKeyAlias;
+
+    private String authType;
 
     public String getAuthEndpoint() {
         return authEndpoint;
@@ -67,5 +70,21 @@ public class BackendAuthConfig {
 
     public void setPrivateKeyAlias(String privateKeyAlias) {
         this.privateKeyAlias = privateKeyAlias;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getAuthType() {
+        return authType;
+    }
+
+    public void setAuthType(String authType) {
+        this.authType = authType;
     }
 }

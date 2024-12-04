@@ -71,7 +71,7 @@ public class OpenHealthcareConfig {
     private Map<String, MailNotificationConfig> notificationMailConfig;
     private OrganizationConfig organizationConfig;
     private ScopeMgtConfig scopeMgtConfig;
-    private BackendAuthConfig backendAuthConfig;
+    private Map<String, BackendAuthConfig> backendAuthConfig;
 
     private OpenHealthcareConfig(TomlParseResult config) throws OpenHealthcareException {
         this.config = config;
@@ -154,7 +154,7 @@ public class OpenHealthcareConfig {
         return scopeMgtConfig;
     }
 
-    public BackendAuthConfig getBackendAuthConfig() {
+    public Map<String, BackendAuthConfig> getBackendAuthConfig() {
         return backendAuthConfig;
     }
 
@@ -579,21 +579,56 @@ public class OpenHealthcareConfig {
 
     }
 
-    private BackendAuthConfig buildBackendAuthConfig() {
-        BackendAuthConfig backendAuthConfig = new BackendAuthConfig();
-        Object backendAuthObj = config.get("healthcare.backend.auth");
-        if (backendAuthObj instanceof TomlTable) {
-            TomlTable beAuthTable = (TomlTable) backendAuthObj;
-            backendAuthConfig.setAuthEndpoint(beAuthTable.getString("token_endpoint"));
-            backendAuthConfig.setClientId(beAuthTable.getString("client_id"));
-            backendAuthConfig.setPrivateKeyAlias(beAuthTable.getString("private_key_alias"));
-            backendAuthConfig.setSSLEnabled(Boolean.TRUE.equals(beAuthTable.getBoolean("is_ssl_enabled")));
-            String clientSecret = beAuthTable.getString("client_secret", () -> null);
-            if (clientSecret != null) {
-                backendAuthConfig.setClient_secret(resolveSecret(clientSecret));
+    private Map<String, BackendAuthConfig> buildBackendAuthConfig() throws OpenHealthcareException {
+//        BackendAuthConfig backendAuthConfig = new BackendAuthConfig();
+//        Object backendAuthObj = config.get("healthcare.backend.auth");
+//        if (backendAuthObj instanceof TomlTable) {
+//            TomlTable beAuthTable = (TomlTable) backendAuthObj;
+//            backendAuthConfig.setAuthEndpoint(beAuthTable.getString("token_endpoint"));
+//            backendAuthConfig.setClientId(beAuthTable.getString("client_id"));
+//            backendAuthConfig.setPrivateKeyAlias(beAuthTable.getString("private_key_alias"));
+//            backendAuthConfig.setSSLEnabled(Boolean.TRUE.equals(beAuthTable.getBoolean("is_ssl_enabled")));
+//            String clientSecret = beAuthTable.getString("client_secret", () -> null);
+//            if (clientSecret != null) {
+//                backendAuthConfig.setClient_secret(resolveSecret(clientSecret));
+//            }
+//        }
+//        return backendAuthConfig;
+
+        Map<String, BackendAuthConfig> backendAuthConfigs = new HashMap<>();
+        Object backendAuthConfigObject = config.get("healthcare.backend.auth");
+        if (backendAuthConfigObject instanceof TomlArray) {
+            TomlArray authConfig = (TomlArray) backendAuthConfigObject;
+            List<Object> authConfigList = authConfig.toList();
+            for (Object notification : authConfigList) {
+                if (notification instanceof TomlTable) {
+                    TomlTable beAuthTable = (TomlTable) notification;
+                    BackendAuthConfig backendAuthConfig = new BackendAuthConfig();
+                    if (StringUtils.isEmpty(beAuthTable.getString("name")) ||
+                            StringUtils.isEmpty(beAuthTable.getString("token_endpoint")) ||
+                            StringUtils.isEmpty(beAuthTable.getString("auth_type")) ||
+                            StringUtils.isEmpty(beAuthTable.getString("client_id"))) {
+                        throw new OpenHealthcareException("One or more mandatory parameter/s in the notification " +
+                                "config missing. [Mandatory params - name, token_endpoint, client_id]");
+                    }
+                    backendAuthConfig.setName(beAuthTable.getString("name"));
+                    backendAuthConfig.setAuthEndpoint(beAuthTable.getString("token_endpoint"));
+                    backendAuthConfig.setClientId(beAuthTable.getString("client_id"));
+                    String keyAlias = beAuthTable.getString("private_key_alias", () -> null);
+                    if (keyAlias != null) {
+                        backendAuthConfig.setPrivateKeyAlias(keyAlias);
+                    }
+                    backendAuthConfig.setSSLEnabled(Boolean.TRUE.equals(beAuthTable.getBoolean("is_ssl_enabled")));
+                    String clientSecret = beAuthTable.getString("client_secret", () -> null);
+                    if (clientSecret != null) {
+                        backendAuthConfig.setClient_secret(resolveSecret(clientSecret));
+                    }
+                    backendAuthConfig.setAuthType(beAuthTable.getString("auth_type"));
+                    backendAuthConfigs.put(backendAuthConfig.getName(), backendAuthConfig);
+                }
             }
         }
-        return backendAuthConfig;
+        return backendAuthConfigs;
     }
 
     private char[] resolveSecret(String secret) {

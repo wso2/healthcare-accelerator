@@ -36,4 +36,13 @@ public class Constants {
 
     public static final String POLICY_ATTR_AUTH_TYPE_CLIENT_CRED = "client-credentials";
     public static final String POLICY_ATTR_AUTH_TYPE_PKJWT = "pkjwt";
+
+    public static final String CONFIG_KEYSTORE_PASSWORD = "Security.KeyStore.Password";
+    public static final String CONFIG_TRUSTSTORE_PASSWORD = "Security.TrustStore.Password";
+    public static final String CLIENT_CREDENTIALS = "client_credentials";
+    public static final String NET_SSL_TRUST_STORE = "javax.net.ssl.trustStore";
+    public static final String OAUTH2_GRANT_TYPE = "grant_type";
+    public static final String OAUTH2_CLIENT_ASSERTION_TYPE = "client_assertion_type";
+    public static final String OAUTH2_CLIENT_ASSERTION_TYPE_JWT_BEARER = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
+    public static final String OAUTH2_CLIENT_ASSERTION = "client_assertion";
 }

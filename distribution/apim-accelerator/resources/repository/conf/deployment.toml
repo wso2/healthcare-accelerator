@@ -418,12 +418,21 @@ policy.limit.time_unit = "min"
 patient_id_uri = "http://wso2.org/claims/patientId"
 patient_id_key = "patientId"
 
-[healthcare.backend.auth]
+[[healthcare.backend.auth]]
+name = "epic_pkjwt"
+auth_type = "pkjwt"
 token_endpoint = "https://localhost:9443/oauth2/token"
 client_id = "client_id"
-client_secret = "client_secret"
 private_key_alias = "wso2carbon"
 is_ssl_enabled = true
+
+#[[healthcare.backend.auth]]
+#name = "epic_client_credentials"
+#auth_type = "client_credentials"
+#token_endpoint = "https://localhost:9443/oauth2/token"
+#client_id = "client_id"
+#client_secret = "client_secret"
+#is_ssl_enabled = true
 
 #[healthcare.deployment.webapps]
 #name = "Open Healthcare"

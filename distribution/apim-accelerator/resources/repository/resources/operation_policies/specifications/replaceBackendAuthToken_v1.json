@@ -15,12 +15,12 @@
   ],
   "policyAttributes": [
     {
-      "name": "authType",
-      "displayName": "Auth Type",
-      "description": "Type of Backend Auth Flow. Currently only PKJWT is supported",
-      "validationRegex": "^(pkjwt|client-credentials)$",
+      "name": "configName",
+      "displayName": "Config Name",
+      "description": "Name of the backend auth server config. Currently only Epic-pkjwt is supported",
+      "validationRegex": "^(pkjwt|client-credentials|epic_pkjwt)$",
       "type": "Enum",
-      "allowedValues" : ["pkjwt"],
+      "allowedValues" : ["epic_pkjwt"],
       "required": true
     }
   ]

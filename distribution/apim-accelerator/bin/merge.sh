@@ -229,13 +229,14 @@ if [ "${smart_on_fhir_enabled}" == "true" ]; then
       echo -e "\n#[healthcare.identity.claims]\n#patient_id_claim_uri = \"http://wso2.org/claims/patientId\"\n#patient_id_key = \"patientId\"\n#fhirUser_resource_url_context = \"/r4/Patient\"\n#fhirUser_resource_id_claim_uri = \"http://wso2.org/claims/patientId\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
   fi
 
-  if grep -Fxq "#[healthcare.backend.auth]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.backend.auth]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+  if grep -Fxq "#[[healthcare.backend.auth]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[[healthcare.backend.auth]]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
     then
         # code if found
         echo -e "[WARN] healthcare.backend.auth configuration already exist"
     else
         # code if not found
-        echo -e "\n[healthcare.backend.auth]\ntoken_endpoint = \"https://localhost:9443/oauth2/token\"\nclient_id = \"client_id\"\nclient_secret = \"client_secret\"\nprivate_key_alias = \"wso2carbon\"\nis_ssl_enabled = true"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+        echo -e "\n[[healthcare.backend.auth]]\nname = \"epic_pkjwt\"\nauth_type = \"pkjwt\"\ntoken_endpoint = \"https://localhost:9443/oauth2/token\"\nclient_id = \"client_id\"\nprivate_key_alias = \"wso2carbon\"\nis_ssl_enabled = true
+     \n#[[healthcare.backend.auth]]\n#name = \"epic_client_credentials\"\n#auth_type = \"client_credentials\"\n#token_endpoint = \"https://localhost:9443/oauth2/token\"\n#client_id = \"client_id\"\n#client_secret = \"client_secret\"\n#is_ssl_enabled = true"  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
     fi
 
   if grep -Fxq "#[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[healthcare.identity.claim.mgt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml

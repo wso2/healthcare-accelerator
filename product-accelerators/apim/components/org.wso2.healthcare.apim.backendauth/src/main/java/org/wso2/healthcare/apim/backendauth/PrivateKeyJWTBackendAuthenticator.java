@@ -37,7 +37,6 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.apache.synapse.MessageContext;
-import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.wso2.carbon.core.util.KeyStoreManager;
 import org.wso2.carbon.utils.CarbonUtils;
 import org.wso2.healthcare.apim.backendauth.tokenmgt.Token;
@@ -56,21 +55,18 @@ import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPrivateKey;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.Map;
 import java.util.UUID;
 
 /**
  * Mediator to authenticate with the backend using private key JWT.
  */
-public class PrivateKeyJWTBackendAuthenticator extends BackendAuthenticator {
+public class PrivateKeyJWTBackendAuthenticator implements BackendAuthHandler {
 
     private static final Log log = LogFactory.getLog(PrivateKeyJWTBackendAuthenticator.class);
     private static final JsonParser parser = new JsonParser();
 
-    public PrivateKeyJWTBackendAuthenticator() throws OpenHealthcareException {
-    }
-
-    public boolean mediate(MessageContext messageContext) {
+    @Override
+    public String fetchValidAccessToken(MessageContext messageContext, BackendAuthConfig backendAuthConfig) {
 
         log.info("PrivateKeyJWTBackendAuthenticator mediator is started.");
 
@@ -78,9 +74,9 @@ public class PrivateKeyJWTBackendAuthenticator extends BackendAuthenticator {
         String tokenEndpoint = backendAuthConfig.getAuthEndpoint();
         String keyAlias = backendAuthConfig.getPrivateKeyAlias();
         char[] keyStorePass = CarbonUtils.getServerConfiguration().getFirstProperty(
-                "Security.KeyStore.Password").toCharArray();
+                Constants.CONFIG_KEYSTORE_PASSWORD).toCharArray();
         char[] trustStorePass = CarbonUtils.getServerConfiguration().getFirstProperty(
-                "Security.TrustStore.Password").toCharArray();
+                Constants.CONFIG_TRUSTSTORE_PASSWORD).toCharArray();
         String clientId = backendAuthConfig.getClientId();
         int tenantId = Integer.parseInt(messageContext.getProperty(Constants.TENANT_INFO_ID).toString());
         KeyStoreManager keyStoreManager = KeyStoreManager.getInstance(tenantId);
@@ -106,53 +102,36 @@ public class PrivateKeyJWTBackendAuthenticator extends BackendAuthenticator {
                 log.debug("Access token not available in TokenManager.");
             }
             try {
-                token = getAndAddNewToken(clientId, tokenEndpoint, messageContext, privateKey, publicCert, trustStorePass);
+                token = getAndAddNewToken(messageContext, privateKey, publicCert, trustStorePass, backendAuthConfig);
             } catch (OpenHealthcareException e) {
-                log.error("Error occurred while retrieving access token.",e);
+                log.error("Error occurred while retrieving access token.", e);
                 throw new OpenHealthcareRuntimeException(e);
             }
         }
         accessToken = token.getAccessToken();
-
-        messageContext.setProperty(Constants.PROPERTY_ACCESS_TOKEN, accessToken);
-
-        if (messageContext instanceof Axis2MessageContext) {
-            org.apache.axis2.context.MessageContext axisMsgCtx =
-                    ((Axis2MessageContext) messageContext).getAxis2MessageContext();
-            Object headers = axisMsgCtx.getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
-            if (headers instanceof Map) {
-                Map headersMap = (Map) headers;
-                if (headersMap.get(Constants.HEADER_NAME_AUTHORIZATION) != null) {
-                    headersMap.remove(Constants.HEADER_NAME_AUTHORIZATION);
-                }
-                headersMap.put(Constants.HEADER_NAME_AUTHORIZATION, Constants.HEADER_VALUE_BEARER + accessToken);
-                axisMsgCtx.setProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS, headersMap);
-            }else {
-                log.warn("Transport headers are not available in the message context.");
-            }
-        }else {
-            log.error("Message context is not an instance of Axis2MessageContext.");
-        }
-        return true;
+        return accessToken;
     }
 
     /**
      * Retrieve token from the token store. If token is not available or inactive, generate new token.
-     * @param clientId - to retrieve token
-     * @param tokenEndpoint - to retrieve token
+     *
      * @param messageContext - to set error response
-     * @param privateKey - to sign the JWT
+     * @param privateKey     - to sign the JWT
      * @return Token
      * @throws OpenHealthcareException - when error occurred while retrieving token
      */
-    private synchronized Token getAndAddNewToken(String clientId, String tokenEndpoint, MessageContext messageContext, Key privateKey, Certificate publicCert, char[] trustStorePass) throws OpenHealthcareException {
+    private synchronized Token getAndAddNewToken(MessageContext messageContext, Key privateKey, Certificate publicCert,
+                                                 char[] trustStorePass, BackendAuthConfig config)
+            throws OpenHealthcareException {
 
+        String clientId = config.getClientId();
+        String tokenEndpoint = config.getAuthEndpoint();
         Token token = TokenManager.getToken(clientId, tokenEndpoint);
         if (token == null || !token.isActive()) {
             String jwt = generateJWT(clientId, tokenEndpoint, privateKey, publicCert);
-            token = getAccessToken(messageContext, tokenEndpoint, jwt, backendAuthConfig.isSSLEnabled(), trustStorePass);
+            token = getAccessToken(messageContext, tokenEndpoint, jwt, config.isSSLEnabled(), trustStorePass);
             TokenManager.addToken(clientId, tokenEndpoint, token);
-        }else {
+        } else {
             if (log.isDebugEnabled()) {
                 log.debug("Token exists in the token store.");
             }
@@ -162,13 +141,15 @@ public class PrivateKeyJWTBackendAuthenticator extends BackendAuthenticator {
 
     /**
      * Generate JWT token with signature.
-     * @param clientId - to add as subject
+     *
+     * @param clientId      - to add as subject
      * @param tokenEndpoint - audience
-     * @param privateKey - to sign the JWT
+     * @param privateKey    - to sign the JWT
      * @return JWT as string
      * @throws OpenHealthcareException JOSEException
      */
-    private String generateJWT(String clientId, String tokenEndpoint, Key privateKey, Certificate publicCert) throws OpenHealthcareException {
+    private String generateJWT(String clientId, String tokenEndpoint, Key privateKey, Certificate publicCert) throws
+            OpenHealthcareException {
 
         try {
             RSAPrivateKey rsaPrivateKey = (RSAPrivateKey) privateKey;
@@ -204,10 +185,11 @@ public class PrivateKeyJWTBackendAuthenticator extends BackendAuthenticator {
 
     /**
      * Retrieve access token from the token endpoint. This makes external HTTP call to the token endpoint.
+     *
      * @param messageContext - to set error response
-     * @param tokenEndpoint - to retrieve access token
-     * @param jwt - signed JWT including claims
-     * @param isSSLEnabled - whether SSL is enabled
+     * @param tokenEndpoint  - to retrieve access token
+     * @param jwt            - signed JWT including claims
+     * @param isSSLEnabled   - whether SSL is enabled
      * @return Token
      * @throws OpenHealthcareException - when error occurred while retrieving access token
      */
@@ -220,12 +202,13 @@ public class PrivateKeyJWTBackendAuthenticator extends BackendAuthenticator {
             throws OpenHealthcareException {
 
         long curTimeInMillis = System.currentTimeMillis();
-        String trustStorePath = System.getProperty("javax.net.ssl.trustStore");
+        String trustStorePath = System.getProperty(Constants.NET_SSL_TRUST_STORE);
         HttpPost postRequest = new HttpPost(tokenEndpoint);
         ArrayList<NameValuePair> parameters = new ArrayList<>();
-        parameters.add(new BasicNameValuePair("grant_type", "client_credentials"));
-        parameters.add(new BasicNameValuePair("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"));
-        parameters.add(new BasicNameValuePair("client_assertion", jwt));
+        parameters.add(new BasicNameValuePair(Constants.OAUTH2_GRANT_TYPE, Constants.CLIENT_CREDENTIALS));
+        parameters.add(new BasicNameValuePair(
+                Constants.OAUTH2_CLIENT_ASSERTION_TYPE, Constants.OAUTH2_CLIENT_ASSERTION_TYPE_JWT_BEARER));
+        parameters.add(new BasicNameValuePair(Constants.OAUTH2_CLIENT_ASSERTION, jwt));
 
         try {
             postRequest.setEntity(new UrlEncodedFormEntity(parameters));
@@ -267,9 +250,10 @@ public class PrivateKeyJWTBackendAuthenticator extends BackendAuthenticator {
 
     /**
      * Handle error response from the token endpoint.
+     *
      * @param messageContext - to set error response
      * @param responseStatus - HTTP status code
-     * @param respMessage - response message
+     * @param respMessage    - response message
      * @throws OpenHealthcareException - to propagate the error
      */
     private static void handleTokenRequestError(MessageContext messageContext, int responseStatus, String respMessage) throws OpenHealthcareException {
@@ -282,7 +266,8 @@ public class PrivateKeyJWTBackendAuthenticator extends BackendAuthenticator {
 
     /**
      * Extract token from the response message.
-     * @param respMessage - response message
+     *
+     * @param respMessage     - response message
      * @param curTimeInMillis - current time in milliseconds
      * @return - Token
      */
