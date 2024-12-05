@@ -23,6 +23,9 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.mediators.AbstractMediator;
+import org.wso2.healthcare.apim.backendauth.impl.BackendAuthHandler;
+import org.wso2.healthcare.apim.backendauth.impl.ClientCredentialsBackendAuthenticator;
+import org.wso2.healthcare.apim.backendauth.impl.PrivateKeyJWTBackendAuthenticator;
 import org.wso2.healthcare.apim.core.OpenHealthcareEnvironment;
 import org.wso2.healthcare.apim.core.OpenHealthcareException;
 import org.wso2.healthcare.apim.core.config.BackendAuthConfig;
@@ -38,10 +41,12 @@ public class BackendAuthenticator extends AbstractMediator {
     private String configName;
     private final Map<String, BackendAuthConfig> backendAuthConfig;
     private final PrivateKeyJWTBackendAuthenticator privateKeyJWTBackendAuthenticator;
+    private final ClientCredentialsBackendAuthenticator clientCredentialsBackendAuthenticator;
 
     public BackendAuthenticator() throws OpenHealthcareException {
         backendAuthConfig = OpenHealthcareEnvironment.getInstance().getConfig().getBackendAuthConfig();
         privateKeyJWTBackendAuthenticator = new PrivateKeyJWTBackendAuthenticator();
+        clientCredentialsBackendAuthenticator = new ClientCredentialsBackendAuthenticator();
 
     }
 
@@ -53,24 +58,30 @@ public class BackendAuthenticator extends AbstractMediator {
 
         BackendAuthConfig config = backendAuthConfig.get(configName);
         String accessToken;
+        BackendAuthHandler currentAuthenticator;
 
         if (configName == null) {
             log.error("Auth type is not defined in the message context.");
             return false;
         }
-        if (config.getAuthType().equals(Constants.POLICY_ATTR_AUTH_TYPE_PKJWT)) {
-            if (log.isDebugEnabled()) {
-                log.debug("Auth type is PKJWT.");
-            }
-            accessToken = privateKeyJWTBackendAuthenticator.fetchValidAccessToken(messageContext, config);
-        } else if (config.getAuthType().equals(Constants.POLICY_ATTR_AUTH_TYPE_CLIENT_CRED)) {
-            if (log.isDebugEnabled()) {
-                log.debug("Auth type is CLIENT CREDENTIALS.");
-            }
-            return true;
-        } else {
-            log.error("Auth type is not supported.");
-            return false;
+        switch (config.getAuthType()) {
+            case Constants.POLICY_ATTR_AUTH_TYPE_PKJWT:
+                if (log.isDebugEnabled()) {
+                    log.debug("Auth type is PKJWT.");
+                }
+                currentAuthenticator = privateKeyJWTBackendAuthenticator;
+                accessToken = privateKeyJWTBackendAuthenticator.fetchValidAccessToken(messageContext, config);
+                break;
+            case Constants.POLICY_ATTR_AUTH_TYPE_CLIENT_CRED:
+                if (log.isDebugEnabled()) {
+                    log.debug("Auth type is CLIENT CREDENTIALS.");
+                }
+                currentAuthenticator = clientCredentialsBackendAuthenticator;
+                accessToken = clientCredentialsBackendAuthenticator.fetchValidAccessToken(messageContext, config);
+                break;
+            default:
+                log.error("Auth type is not supported.");
+                return false;
         }
 
         if (messageContext instanceof Axis2MessageContext) {
@@ -82,7 +93,7 @@ public class BackendAuthenticator extends AbstractMediator {
                 if (headersMap.get(Constants.HEADER_NAME_AUTHORIZATION) != null) {
                     headersMap.remove(Constants.HEADER_NAME_AUTHORIZATION);
                 }
-                headersMap.put(Constants.HEADER_NAME_AUTHORIZATION, Constants.HEADER_VALUE_BEARER + accessToken);
+                headersMap.put(Constants.HEADER_NAME_AUTHORIZATION, currentAuthenticator.getAuthHeaderScheme() + accessToken);
                 axisMsgCtx.setProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS, headersMap);
             } else {
                 log.warn("Transport headers are not available in the message context.");

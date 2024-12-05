@@ -33,6 +33,7 @@ public class Constants {
     public static final int DEFAULT_MAX_TOTAL_CONNECTIONS = 20;
     public static final String HEADER_NAME_AUTHORIZATION = "Authorization";
     public static final String HEADER_VALUE_BEARER = "Bearer ";
+    public static final String HEADER_VALUE_BASIC = "Basic ";
 
     public static final String POLICY_ATTR_AUTH_TYPE_CLIENT_CRED = "client-credentials";
     public static final String POLICY_ATTR_AUTH_TYPE_PKJWT = "pkjwt";

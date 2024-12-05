@@ -22,6 +22,9 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.healthcare.apim.backendauth.Constants;
 
+/**
+ * Token Manager class to manage access tokens.
+ */
 public class TokenManager {
     private static final Log log = LogFactory.getLog(TokenManager.class);
     private static final TokenStore TOKEN_STORE = new InMemoryTokenStore();

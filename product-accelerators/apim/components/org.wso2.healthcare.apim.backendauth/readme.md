@@ -10,13 +10,25 @@ retrieved token.
 ## Configuration Model
 
 ```toml
-[healthcare.backend.auth]
+[[healthcare.backend.auth]]
+name = "backend-auth"
+auth_type = "pkjwt" or "client-credentials"
 token_endpoint = "https://localhost:9443/oauth2/token"
 client_id = "client_id"
-client_secret = "client_secret"
-private_key_alias = "wso2carbon"
-is_ssl_enabled = true
+client_secret = "client_secret" # Only for Client Credentials flow
+private_key_alias = "key_alias" # Only for PKJWT flow
 ```
+###  Parameters
+
+| Parameter           | Description                                                                                                                                              | Example Value                                 |
+|---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
+| `name`              | Name of the authentication method. This name must be matched with the `Backend Auth Config` policy attribute in the `Replace Backend Auth Token` policy. | `epic-pkjwt`                                  |
+| `auth_type`         | Authentication type. Only `pkjwt` and `client_credentials` are supported atm.                                                                            | `pkjwt`                                       |
+| `token_endpoint`    | The URL of the external auth server's token endpoint for obtaining tokens.                                                                               | `https://external.auth.com:9443/oauth2/token` |
+| `client_id`         | The client identifier registered with the auth server.                                                                                                   | `client_id`                                   |
+| `client_secret`     | The client secret associated with the client ID (if applicable).                                                                                         | `client_secret`                               |
+| `private_key_alias` | The alias of the private key used for signing JWTs (if applicable). This key must be added to the Primary Keystore                                       | `key_alias`                                   |
+
 
 ## Key Features
 
@@ -24,7 +36,7 @@ is_ssl_enabled = true
 retrieve tokens for backend services.
 - **Grant Type Support**: Supports the following OAuth 2.0 grant types:
     - JWT Bearer Grant
-    - Client Credentials Grant (In-Progress. Will be available in the next release)
+    - Client Credentials Grant
 - **Dynamic Header Replacement**: Automatically replaces the existing `Authorization` header in API requests with the 
 access token retrieved from the configured auth server.
 

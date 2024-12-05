@@ -16,7 +16,7 @@
  * under the License.
  */
 
-package org.wso2.healthcare.apim.backendauth;
+package org.wso2.healthcare.apim.backendauth.impl;
 
 import org.apache.synapse.MessageContext;
 import org.wso2.healthcare.apim.core.config.BackendAuthConfig;
@@ -26,5 +26,16 @@ import org.wso2.healthcare.apim.core.config.BackendAuthConfig;
  */
 public interface BackendAuthHandler {
 
-    String fetchValidAccessToken(MessageContext messageContext, BackendAuthConfig config);
+    /**
+     * Fetch a valid access token from the relevant Auth implementation.
+     *
+     * @param messageContext Message context.
+     * @return Valid access token.
+     */
+    String fetchValidAccessToken(MessageContext messageContext, BackendAuthConfig backendAuthConfig);
+
+    /**
+     * Get the auth header scheme. i.e. Bearer, Basic etc.
+     */
+    String getAuthHeaderScheme();
 }

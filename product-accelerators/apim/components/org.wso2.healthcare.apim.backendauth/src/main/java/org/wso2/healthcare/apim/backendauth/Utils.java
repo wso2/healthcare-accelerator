@@ -18,8 +18,16 @@
 
 package org.wso2.healthcare.apim.backendauth;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.HttpEntity;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
@@ -33,14 +41,20 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.ssl.TrustStrategy;
+import org.apache.http.util.EntityUtils;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.SynapseConstants;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
+import org.wso2.carbon.utils.CarbonUtils;
+import org.wso2.healthcare.apim.backendauth.tokenmgt.Token;
 import org.wso2.healthcare.apim.core.OpenHealthcareException;
+import org.wso2.healthcare.apim.core.OpenHealthcareRuntimeException;
 
 import javax.net.ssl.SSLContext;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -48,6 +62,8 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Utility class for the backend authentication.
@@ -60,6 +76,8 @@ public class Utils {
     public static final String HTTP_PROTOCOL = "http";
     public static final String HTTPS_PROTOCOL = "https";
     private static final String[] SUPPORTED_HTTP_PROTOCOLS = {"TLSv1.2"};
+
+    private static final JsonParser parser = new JsonParser();
 
     public static void setErrorResponse(MessageContext messageContext, Throwable e, int errorCode, String msg) {
 
@@ -198,6 +216,82 @@ public class Utils {
         String issuerName = cert.getIssuerDN().getName();
         String kid = issuerName + "#" + serialNumber;
         return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(kid.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static Token initiateTokenRequest(MessageContext messageContext, HttpPost postRequest,
+                                             List<NameValuePair> parameters)
+            throws OpenHealthcareException {
+        long curTimeInMillis = System.currentTimeMillis();
+        String trustStorePath = System.getProperty(Constants.NET_SSL_TRUST_STORE);
+        char[] trustStorePass = CarbonUtils.getServerConfiguration().getFirstProperty(
+                Constants.CONFIG_TRUSTSTORE_PASSWORD).toCharArray();
+
+        try {
+            postRequest.setEntity(new UrlEncodedFormEntity(parameters));
+        } catch (UnsupportedEncodingException e) {
+            String message = "Error occurred while preparing access token request payload.";
+            log.error(message);
+            throw new OpenHealthcareException(message, e);
+        }
+        CloseableHttpClient httpsClient = Utils.getHttpsClient(trustStorePath, trustStorePass);
+        CloseableHttpResponse response;
+        try {
+            response = httpsClient.execute(postRequest);
+            HttpEntity responseEntity = response.getEntity();
+            if (responseEntity == null) {
+                String message = "Failed to retrieve access token : No entity received.";
+                log.error(message);
+                throw new OpenHealthcareException(message);
+            }
+            int responseStatus = response.getStatusLine().getStatusCode();
+            String respMessage;
+            respMessage = EntityUtils.toString(responseEntity);
+
+            if (responseStatus == HttpURLConnection.HTTP_OK) {
+                return extractToken(respMessage, curTimeInMillis);
+            } else {
+                handleTokenRequestError(messageContext, responseStatus, respMessage);
+            }
+        } catch (IOException e) {
+            throw new OpenHealthcareRuntimeException(e);
+        }
+        throw new OpenHealthcareException("Error occurred while retrieving access token.");
+    }
+
+    /**
+     * Extract token from the response message.
+     *
+     * @param respMessage     - response message
+     * @param curTimeInMillis - current time in milliseconds
+     * @return - Token
+     */
+    private static Token extractToken(String respMessage, long curTimeInMillis) {
+        JsonElement jsonElement = parser.parse(respMessage);
+        JsonObject jsonObject = jsonElement.getAsJsonObject();
+        String accessToken = jsonObject.get("access_token").getAsString();
+        long expireIn = jsonObject.get("expires_in").getAsLong();
+
+        Token token = new Token(accessToken, curTimeInMillis, expireIn * 1000);
+        if (log.isDebugEnabled()) {
+            log.debug(token);
+        }
+        return token;
+    }
+
+    /**
+     * Handle error response from the token endpoint.
+     *
+     * @param messageContext - to set error response
+     * @param responseStatus - HTTP status code
+     * @param respMessage    - response message
+     * @throws OpenHealthcareException - to propagate the error
+     */
+    private static void handleTokenRequestError(MessageContext messageContext, int responseStatus, String respMessage) throws OpenHealthcareException {
+        String message = "Error occurred while retrieving access token. Response: [Status : " + responseStatus + " Message: " + respMessage + "]";
+        log.error(message);
+        OpenHealthcareException exp = new OpenHealthcareException(message);
+        Utils.setErrorResponse(messageContext, exp, responseStatus, message);
+        throw exp;
     }
 
 }

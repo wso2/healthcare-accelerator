@@ -27,7 +27,6 @@ public class BackendAuthConfig {
     private String authEndpoint;
     private String clientId;
     private char[] client_secret;
-    private boolean isSSLEnabled;
     private String privateKeyAlias;
 
     private String authType;
@@ -48,20 +47,12 @@ public class BackendAuthConfig {
         this.clientId = clientId;
     }
 
-    public char[] getClient_secret() {
+    public char[] getClientSecret() {
         return client_secret;
     }
 
-    public void setClient_secret(char[] client_secret) {
+    public void setClientSecret(char[] client_secret) {
         this.client_secret = client_secret;
-    }
-
-    public boolean isSSLEnabled() {
-        return isSSLEnabled;
-    }
-
-    public void setSSLEnabled(boolean SSLEnabled) {
-        isSSLEnabled = SSLEnabled;
     }
 
     public String getPrivateKeyAlias() {

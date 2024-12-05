@@ -15,8 +15,8 @@
   ],
   "policyAttributes": [
     {
-      "name": "configName",
-      "displayName": "Config Name",
+      "name": "backendAuthConfig",
+      "displayName": "Backend Auth Config",
       "description": "Name of the backend auth server config. This has to an exact match with the config name in the deployment.toml [[healthcare.backend.auth]] section",
       "type": "String",
       "required": true

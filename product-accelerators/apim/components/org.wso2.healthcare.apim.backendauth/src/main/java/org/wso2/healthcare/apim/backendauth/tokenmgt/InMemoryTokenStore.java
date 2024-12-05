@@ -21,6 +21,9 @@ package org.wso2.healthcare.apim.backendauth.tokenmgt;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * In-memory implementation of Token Store.
+ */
 public class InMemoryTokenStore implements TokenStore {
 
     private final Map<String, Token> TOKEN_MAP = new ConcurrentHashMap<>(2);

@@ -18,6 +18,9 @@
 
 package org.wso2.healthcare.apim.backendauth.tokenmgt;
 
+/**
+ * Token model class to hold access token information.
+ */
 public class Token {
 
     private final String accessToken;

@@ -580,20 +580,6 @@ public class OpenHealthcareConfig {
     }
 
     private Map<String, BackendAuthConfig> buildBackendAuthConfig() throws OpenHealthcareException {
-//        BackendAuthConfig backendAuthConfig = new BackendAuthConfig();
-//        Object backendAuthObj = config.get("healthcare.backend.auth");
-//        if (backendAuthObj instanceof TomlTable) {
-//            TomlTable beAuthTable = (TomlTable) backendAuthObj;
-//            backendAuthConfig.setAuthEndpoint(beAuthTable.getString("token_endpoint"));
-//            backendAuthConfig.setClientId(beAuthTable.getString("client_id"));
-//            backendAuthConfig.setPrivateKeyAlias(beAuthTable.getString("private_key_alias"));
-//            backendAuthConfig.setSSLEnabled(Boolean.TRUE.equals(beAuthTable.getBoolean("is_ssl_enabled")));
-//            String clientSecret = beAuthTable.getString("client_secret", () -> null);
-//            if (clientSecret != null) {
-//                backendAuthConfig.setClient_secret(resolveSecret(clientSecret));
-//            }
-//        }
-//        return backendAuthConfig;
 
         Map<String, BackendAuthConfig> backendAuthConfigs = new HashMap<>();
         Object backendAuthConfigObject = config.get("healthcare.backend.auth");
@@ -618,10 +604,9 @@ public class OpenHealthcareConfig {
                     if (keyAlias != null) {
                         backendAuthConfig.setPrivateKeyAlias(keyAlias);
                     }
-                    backendAuthConfig.setSSLEnabled(Boolean.TRUE.equals(beAuthTable.getBoolean("is_ssl_enabled")));
                     String clientSecret = beAuthTable.getString("client_secret", () -> null);
                     if (clientSecret != null) {
-                        backendAuthConfig.setClient_secret(resolveSecret(clientSecret));
+                        backendAuthConfig.setClientSecret(resolveSecret(clientSecret));
                     }
                     backendAuthConfig.setAuthType(beAuthTable.getString("auth_type"));
                     backendAuthConfigs.put(backendAuthConfig.getName(), backendAuthConfig);

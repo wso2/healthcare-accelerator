@@ -16,7 +16,7 @@
  * under the License.
  */
 
-package org.wso2.healthcare.apim.backendauth;
+package org.wso2.healthcare.apim.backendauth.impl;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -33,12 +33,14 @@ import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.apache.synapse.MessageContext;
+import org.jetbrains.annotations.NotNull;
 import org.wso2.carbon.core.util.KeyStoreManager;
 import org.wso2.carbon.utils.CarbonUtils;
+import org.wso2.healthcare.apim.backendauth.Constants;
+import org.wso2.healthcare.apim.backendauth.Utils;
 import org.wso2.healthcare.apim.backendauth.tokenmgt.Token;
 import org.wso2.healthcare.apim.backendauth.tokenmgt.TokenManager;
 import org.wso2.healthcare.apim.core.OpenHealthcareException;
@@ -63,7 +65,11 @@ import java.util.UUID;
 public class PrivateKeyJWTBackendAuthenticator implements BackendAuthHandler {
 
     private static final Log log = LogFactory.getLog(PrivateKeyJWTBackendAuthenticator.class);
-    private static final JsonParser parser = new JsonParser();
+
+    @Override
+    public String getAuthHeaderScheme() {
+        return Constants.HEADER_VALUE_BEARER;
+    }
 
     @Override
     public String fetchValidAccessToken(MessageContext messageContext, BackendAuthConfig backendAuthConfig) {
@@ -75,8 +81,6 @@ public class PrivateKeyJWTBackendAuthenticator implements BackendAuthHandler {
         String keyAlias = backendAuthConfig.getPrivateKeyAlias();
         char[] keyStorePass = CarbonUtils.getServerConfiguration().getFirstProperty(
                 Constants.CONFIG_KEYSTORE_PASSWORD).toCharArray();
-        char[] trustStorePass = CarbonUtils.getServerConfiguration().getFirstProperty(
-                Constants.CONFIG_TRUSTSTORE_PASSWORD).toCharArray();
         String clientId = backendAuthConfig.getClientId();
         int tenantId = Integer.parseInt(messageContext.getProperty(Constants.TENANT_INFO_ID).toString());
         KeyStoreManager keyStoreManager = KeyStoreManager.getInstance(tenantId);
@@ -102,7 +106,7 @@ public class PrivateKeyJWTBackendAuthenticator implements BackendAuthHandler {
                 log.debug("Access token not available in TokenManager.");
             }
             try {
-                token = getAndAddNewToken(messageContext, privateKey, publicCert, trustStorePass, backendAuthConfig);
+                token = getAndAddNewToken(messageContext, privateKey, publicCert, backendAuthConfig);
             } catch (OpenHealthcareException e) {
                 log.error("Error occurred while retrieving access token.", e);
                 throw new OpenHealthcareRuntimeException(e);
@@ -121,7 +125,7 @@ public class PrivateKeyJWTBackendAuthenticator implements BackendAuthHandler {
      * @throws OpenHealthcareException - when error occurred while retrieving token
      */
     private synchronized Token getAndAddNewToken(MessageContext messageContext, Key privateKey, Certificate publicCert,
-                                                 char[] trustStorePass, BackendAuthConfig config)
+                                                 BackendAuthConfig config)
             throws OpenHealthcareException {
 
         String clientId = config.getClientId();
@@ -129,7 +133,7 @@ public class PrivateKeyJWTBackendAuthenticator implements BackendAuthHandler {
         Token token = TokenManager.getToken(clientId, tokenEndpoint);
         if (token == null || !token.isActive()) {
             String jwt = generateJWT(clientId, tokenEndpoint, privateKey, publicCert);
-            token = getAccessToken(messageContext, tokenEndpoint, jwt, config.isSSLEnabled(), trustStorePass);
+            token = getAccessToken(messageContext, tokenEndpoint, jwt);
             TokenManager.addToken(clientId, tokenEndpoint, token);
         } else {
             if (log.isDebugEnabled()) {
@@ -189,20 +193,15 @@ public class PrivateKeyJWTBackendAuthenticator implements BackendAuthHandler {
      * @param messageContext - to set error response
      * @param tokenEndpoint  - to retrieve access token
      * @param jwt            - signed JWT including claims
-     * @param isSSLEnabled   - whether SSL is enabled
      * @return Token
      * @throws OpenHealthcareException - when error occurred while retrieving access token
      */
     private static Token getAccessToken(
             MessageContext messageContext,
             String tokenEndpoint,
-            String jwt,
-            boolean isSSLEnabled,
-            char[] trustStorePass)
+            String jwt)
             throws OpenHealthcareException {
 
-        long curTimeInMillis = System.currentTimeMillis();
-        String trustStorePath = System.getProperty(Constants.NET_SSL_TRUST_STORE);
         HttpPost postRequest = new HttpPost(tokenEndpoint);
         ArrayList<NameValuePair> parameters = new ArrayList<>();
         parameters.add(new BasicNameValuePair(Constants.OAUTH2_GRANT_TYPE, Constants.CLIENT_CREDENTIALS));
@@ -210,78 +209,7 @@ public class PrivateKeyJWTBackendAuthenticator implements BackendAuthHandler {
                 Constants.OAUTH2_CLIENT_ASSERTION_TYPE, Constants.OAUTH2_CLIENT_ASSERTION_TYPE_JWT_BEARER));
         parameters.add(new BasicNameValuePair(Constants.OAUTH2_CLIENT_ASSERTION, jwt));
 
-        try {
-            postRequest.setEntity(new UrlEncodedFormEntity(parameters));
-        } catch (UnsupportedEncodingException e) {
-            String message = "Error occurred while preparing access token request payload.";
-            log.error(message);
-            throw new OpenHealthcareException(message, e);
-        }
-        CloseableHttpClient httpsClient;
-
-        if (isSSLEnabled) {
-            httpsClient = Utils.getHttpsClient(trustStorePath, trustStorePass);
-        } else {
-            httpsClient = HttpClients.createDefault();
-        }
-        CloseableHttpResponse response;
-        try {
-            response = httpsClient.execute(postRequest);
-            HttpEntity responseEntity = response.getEntity();
-            if (responseEntity == null) {
-                String message = "Failed to retrieve access token : No entity received.";
-                log.error(message);
-                throw new OpenHealthcareException(message);
-            }
-            int responseStatus = response.getStatusLine().getStatusCode();
-            String respMessage;
-            respMessage = EntityUtils.toString(responseEntity);
-
-            if (responseStatus == HttpURLConnection.HTTP_OK) {
-                return extractToken(respMessage, curTimeInMillis);
-            } else {
-                handleTokenRequestError(messageContext, responseStatus, respMessage);
-            }
-        } catch (IOException e) {
-            throw new OpenHealthcareRuntimeException(e);
-        }
-        throw new OpenHealthcareException("Error occurred while retrieving access token.");
-    }
-
-    /**
-     * Handle error response from the token endpoint.
-     *
-     * @param messageContext - to set error response
-     * @param responseStatus - HTTP status code
-     * @param respMessage    - response message
-     * @throws OpenHealthcareException - to propagate the error
-     */
-    private static void handleTokenRequestError(MessageContext messageContext, int responseStatus, String respMessage) throws OpenHealthcareException {
-        String message = "Error occurred while retrieving access token. Response: [Status : " + responseStatus + " Message: " + respMessage + "]";
-        log.error(message);
-        OpenHealthcareException exp = new OpenHealthcareException(message);
-        Utils.setErrorResponse(messageContext, exp, responseStatus, message);
-        throw exp;
-    }
-
-    /**
-     * Extract token from the response message.
-     *
-     * @param respMessage     - response message
-     * @param curTimeInMillis - current time in milliseconds
-     * @return - Token
-     */
-    private static Token extractToken(String respMessage, long curTimeInMillis) {
-        JsonElement jsonElement = parser.parse(respMessage);
-        JsonObject jsonObject = jsonElement.getAsJsonObject();
-        String accessToken = jsonObject.get("access_token").getAsString();
-        long expireIn = jsonObject.get("expires_in").getAsLong();
-
-        Token token = new Token(accessToken, curTimeInMillis, expireIn * 1000);
-        if (log.isDebugEnabled()) {
-            log.debug(token);
-        }
-        return token;
+        return Utils.initiateTokenRequest(messageContext, postRequest, parameters);
     }
 
     public String getType() {
