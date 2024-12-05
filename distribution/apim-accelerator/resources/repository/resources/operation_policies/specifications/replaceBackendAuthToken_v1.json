@@ -17,10 +17,8 @@
     {
       "name": "configName",
       "displayName": "Config Name",
-      "description": "Name of the backend auth server config. Currently only Epic-pkjwt is supported",
-      "validationRegex": "^(pkjwt|client-credentials|epic_pkjwt)$",
-      "type": "Enum",
-      "allowedValues" : ["epic_pkjwt"],
+      "description": "Name of the backend auth server config. This has to an exact match with the config name in the deployment.toml [[healthcare.backend.auth]] section",
+      "type": "String",
       "required": true
     }
   ]

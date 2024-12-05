@@ -419,11 +419,15 @@ patient_id_uri = "http://wso2.org/claims/patientId"
 patient_id_key = "patientId"
 
 [[healthcare.backend.auth]]
+# Name of the authentication method. This name must be matched with the Config Name policy attribute in the -
+#  - Replace Backend Auth Token policy.
 name = "epic_pkjwt"
+# Authentication type. Only pkjwt is supported atm.
 auth_type = "pkjwt"
+# External Auth server's Token endpoint URL.
 token_endpoint = "https://localhost:9443/oauth2/token"
 client_id = "client_id"
-private_key_alias = "wso2carbon"
+private_key_alias = "key_alias"
 is_ssl_enabled = true
 
 #[[healthcare.backend.auth]]
