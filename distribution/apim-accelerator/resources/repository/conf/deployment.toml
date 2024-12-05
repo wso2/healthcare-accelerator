@@ -418,16 +418,16 @@ policy.limit.time_unit = "min"
 patient_id_uri = "http://wso2.org/claims/patientId"
 patient_id_key = "patientId"
 
-[[healthcare.backend.auth]]
+#[[healthcare.backend.auth]]
 # Name of the authentication method. This name must be matched with the Backend Auth Config policy attribute in the -
 #  - Replace Backend Auth Token policy.
-name = "epic_pkjwt"
-# Authentication type. Only pkjwt and client_credentials are supported atm.
-auth_type = "pkjwt"
-# External Auth server's Token endpoint URL.
-token_endpoint = "https://localhost:9443/oauth2/token"
-client_id = "client_id"
-private_key_alias = "key_alias"
+#name = "epic_pkjwt"
+## Authentication type. Only pkjwt and client_credentials are supported atm.
+#auth_type = "pkjwt"
+## External Auth server's Token endpoint URL.
+#token_endpoint = "https://localhost:9443/oauth2/token"
+#client_id = "client_id"
+#private_key_alias = "key_alias"
 
 #[[healthcare.backend.auth]]
 #name = "epic_client_credentials"

@@ -108,6 +108,7 @@ public class BackendAuthenticator extends AbstractMediator {
         return configName;
     }
 
+    @SuppressWarnings("Setter will be called by the ESB config builder")
     public void setConfigName(String configName) {
         this.configName = configName;
     }

@@ -18,25 +18,20 @@
 
 package org.wso2.healthcare.apim.backendauth.impl;
 
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import com.nimbusds.jose.*;
+import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.HttpEntity;
 import org.apache.http.NameValuePair;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.util.EntityUtils;
 import org.apache.synapse.MessageContext;
-import org.jetbrains.annotations.NotNull;
 import org.wso2.carbon.core.util.KeyStoreManager;
 import org.wso2.carbon.utils.CarbonUtils;
 import org.wso2.healthcare.apim.backendauth.Constants;
@@ -47,9 +42,6 @@ import org.wso2.healthcare.apim.core.OpenHealthcareException;
 import org.wso2.healthcare.apim.core.OpenHealthcareRuntimeException;
 import org.wso2.healthcare.apim.core.config.BackendAuthConfig;
 
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.HttpURLConnection;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
@@ -65,11 +57,6 @@ import java.util.UUID;
 public class PrivateKeyJWTBackendAuthenticator implements BackendAuthHandler {
 
     private static final Log log = LogFactory.getLog(PrivateKeyJWTBackendAuthenticator.class);
-
-    @Override
-    public String getAuthHeaderScheme() {
-        return Constants.HEADER_VALUE_BEARER;
-    }
 
     @Override
     public String fetchValidAccessToken(MessageContext messageContext, BackendAuthConfig backendAuthConfig) {

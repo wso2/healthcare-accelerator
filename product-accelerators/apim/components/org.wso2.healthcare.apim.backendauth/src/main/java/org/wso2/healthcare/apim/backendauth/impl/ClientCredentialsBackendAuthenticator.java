@@ -50,11 +50,6 @@ public class ClientCredentialsBackendAuthenticator implements BackendAuthHandler
         return accessToken;
     }
 
-    @Override
-    public String getAuthHeaderScheme() {
-        return Constants.HEADER_VALUE_BEARER;
-    }
-
     /**
      * Get and add a new token to the token store.
      *

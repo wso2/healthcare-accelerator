@@ -19,6 +19,7 @@
 package org.wso2.healthcare.apim.backendauth.impl;
 
 import org.apache.synapse.MessageContext;
+import org.wso2.healthcare.apim.backendauth.Constants;
 import org.wso2.healthcare.apim.core.config.BackendAuthConfig;
 
 /**
@@ -37,5 +38,7 @@ public interface BackendAuthHandler {
     /**
      * Get the auth header scheme. i.e. Bearer, Basic etc.
      */
-    String getAuthHeaderScheme();
+    default String getAuthHeaderScheme(){
+        return Constants.HEADER_VALUE_BEARER;
+    }
 }

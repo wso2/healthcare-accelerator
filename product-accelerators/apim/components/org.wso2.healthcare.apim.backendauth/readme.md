@@ -12,7 +12,7 @@ retrieved token.
 ```toml
 [[healthcare.backend.auth]]
 name = "backend-auth"
-auth_type = "pkjwt" or "client-credentials"
+auth_type = "pkjwt"  #"pkjwt" or "client-credentials"
 token_endpoint = "https://localhost:9443/oauth2/token"
 client_id = "client_id"
 client_secret = "client_secret" # Only for Client Credentials flow
