@@ -38,7 +38,7 @@ public interface BackendAuthHandler {
     /**
      * Get the auth header scheme. i.e. Bearer, Basic etc.
      */
-    default String getAuthHeaderScheme(){
+    default String getAuthHeaderScheme() {
         return Constants.HEADER_VALUE_BEARER;
     }
 }

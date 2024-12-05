@@ -95,7 +95,7 @@ public class Utils {
      */
     public static CloseableHttpClient getHttpsClient(String trustStorePath, char[] trustStorePass) throws OpenHealthcareException {
 
-        SSLConnectionSocketFactory sslsf = createSSLConnectionSocketFactory(trustStorePath,trustStorePass);
+        SSLConnectionSocketFactory sslsf = createSSLConnectionSocketFactory(trustStorePath, trustStorePass);
 
         Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
                 .register(HTTP_PROTOCOL, new PlainConnectionSocketFactory())
@@ -109,6 +109,7 @@ public class Utils {
 
     /**
      * Get the pooling http client connection manager.
+     *
      * @param socketFactoryRegistry - Socket factory registry
      * @return PoolingHttpClientConnectionManager
      */
