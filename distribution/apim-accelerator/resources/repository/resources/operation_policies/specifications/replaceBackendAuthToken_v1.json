@@ -1,0 +1,25 @@
+{
+  "category": "Mediation",
+  "name": "replaceBackendAuthToken",
+  "version": "v1",
+  "displayName": "Replace Backend Auth Token",
+  "description": "This handler will replace backend Auth token with a token from external Auth server",
+  "applicableFlows": [
+    "request"
+  ],
+  "supportedGateways": [
+    "Synapse"
+  ],
+  "supportedApiTypes": [
+    "HTTP"
+  ],
+  "policyAttributes": [
+    {
+      "name": "backendAuthConfig",
+      "displayName": "Backend Auth Config",
+      "description": "Name of the backend auth server config. This has to an exact match with the config name in the deployment.toml [[healthcare.backend.auth]] section",
+      "type": "String",
+      "required": true
+    }
+  ]
+}

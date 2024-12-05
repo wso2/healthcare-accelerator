@@ -494,6 +494,12 @@
                 <version>${carbon.kernel.version}</version>
                 <scope>test</scope>
             </dependency>
+
+<!--            Backend Authenticator related -->
+            <dependency>
+                <groupId>commons-logging</groupId>
+                <artifactId>commons-logging</artifactId>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

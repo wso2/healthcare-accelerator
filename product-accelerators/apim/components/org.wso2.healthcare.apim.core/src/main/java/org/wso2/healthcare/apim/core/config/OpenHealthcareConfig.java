@@ -71,6 +71,7 @@ public class OpenHealthcareConfig {
     private Map<String, MailNotificationConfig> notificationMailConfig;
     private OrganizationConfig organizationConfig;
     private ScopeMgtConfig scopeMgtConfig;
+    private Map<String, BackendAuthConfig> backendAuthConfig;
 
     private OpenHealthcareConfig(TomlParseResult config) throws OpenHealthcareException {
         this.config = config;
@@ -153,6 +154,10 @@ public class OpenHealthcareConfig {
         return scopeMgtConfig;
     }
 
+    public Map<String, BackendAuthConfig> getBackendAuthConfig() {
+        return backendAuthConfig;
+    }
+
     private void parse(TomlParseResult config) throws OpenHealthcareException {
 
         secretResolver = SecretResolverFactory.create((OMElement) null, false);
@@ -183,6 +188,8 @@ public class OpenHealthcareConfig {
         organizationConfig = buildOrganizationconfig();
         //Parse scope mgt config
         scopeMgtConfig = buildScopeMgtConfig();
+        //Parse backend auth config
+        backendAuthConfig = buildBackendAuthConfig();
     }
 
     private AccountConfig buildAccountConfig() throws OpenHealthcareException {
@@ -570,6 +577,43 @@ public class OpenHealthcareConfig {
         }
         return scopeMgtConfig;
 
+    }
+
+    private Map<String, BackendAuthConfig> buildBackendAuthConfig() throws OpenHealthcareException {
+
+        Map<String, BackendAuthConfig> backendAuthConfigs = new HashMap<>();
+        Object backendAuthConfigObject = config.get("healthcare.backend.auth");
+        if (backendAuthConfigObject instanceof TomlArray) {
+            TomlArray authConfig = (TomlArray) backendAuthConfigObject;
+            List<Object> authConfigList = authConfig.toList();
+            for (Object notification : authConfigList) {
+                if (notification instanceof TomlTable) {
+                    TomlTable beAuthTable = (TomlTable) notification;
+                    BackendAuthConfig backendAuthConfig = new BackendAuthConfig();
+                    if (StringUtils.isEmpty(beAuthTable.getString("name")) ||
+                            StringUtils.isEmpty(beAuthTable.getString("token_endpoint")) ||
+                            StringUtils.isEmpty(beAuthTable.getString("auth_type")) ||
+                            StringUtils.isEmpty(beAuthTable.getString("client_id"))) {
+                        throw new OpenHealthcareException("One or more mandatory parameter/s in the notification " +
+                                "config missing. [Mandatory params - name, token_endpoint, client_id]");
+                    }
+                    backendAuthConfig.setName(beAuthTable.getString("name"));
+                    backendAuthConfig.setAuthEndpoint(beAuthTable.getString("token_endpoint"));
+                    backendAuthConfig.setClientId(beAuthTable.getString("client_id"));
+                    String keyAlias = beAuthTable.getString("private_key_alias", () -> null);
+                    if (keyAlias != null) {
+                        backendAuthConfig.setPrivateKeyAlias(keyAlias);
+                    }
+                    String clientSecret = beAuthTable.getString("client_secret", () -> null);
+                    if (clientSecret != null) {
+                        backendAuthConfig.setClientSecret(resolveSecret(clientSecret));
+                    }
+                    backendAuthConfig.setAuthType(beAuthTable.getString("auth_type"));
+                    backendAuthConfigs.put(backendAuthConfig.getName(), backendAuthConfig);
+                }
+            }
+        }
+        return backendAuthConfigs;
     }
 
     private char[] resolveSecret(String secret) {
