@@ -48,5 +48,5 @@ By default, U2 update related files are added in the build.
 hc-accelerator
 ├── LICENSE.txt
 │   ├── bin
-│   ├── update
+│   ├── updates
 ```
