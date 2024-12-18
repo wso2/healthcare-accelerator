@@ -77,7 +77,7 @@
                                     </includes>
                                 </resource>
                                 <resource>
-                                    <directory>${basedir}/../../distribution/apim-accelerator/update</directory>
+                                    <directory>${basedir}/../../distribution/apim-accelerator/updates</directory>
                                     <filtering>true</filtering>
                                     <includes>
                                         <include>**/product.txt</include>
@@ -310,7 +310,7 @@
 
                                 <!--Add LICENSE.txt file-->
                                 <copy todir="${product_home}">
-                                    <fileset dir="${basedir}/../../distribution/apim-accelerator/update">
+                                    <fileset dir="${basedir}/../../distribution/apim-accelerator/updates">
                                         <include name="LICENSE.txt"/>
                                     </fileset>
                                 </copy>
@@ -387,7 +387,7 @@
 
                                         <!--Add update directory -->
                                         <copy
-                                                todir="${product_home}/update">
+                                                todir="${product_home}/updates">
                                             <fileset
                                                     dir="target/extra-resources"
                                                     includes="product.txt"/>
@@ -397,7 +397,7 @@
                                         <copy
                                                 todir="${product_home}/bin">
                                             <fileset
-                                                    dir="${basedir}/../../distribution/apim-accelerator/update/bin"
+                                                    dir="${basedir}/../../distribution/apim-accelerator/updates/bin"
                                                     includes="**"/>
                                         </copy>
                                     </tasks>
