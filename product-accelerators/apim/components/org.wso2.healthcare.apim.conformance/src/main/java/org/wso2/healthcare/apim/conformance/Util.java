@@ -172,7 +172,8 @@ public class Util {
     public static List<KeyManagerConfigurationDTO> getKeyManagerConfigs(String tenantDomain) {
         APIAdmin apiAdmin = new APIAdminImpl();
         try {
-            return apiAdmin.getKeyManagerConfigurationsByOrganization(tenantDomain);
+            // Passing new boolean flag for 'checkUsages' as false with 4.3.0 onwards
+            return apiAdmin.getKeyManagerConfigurationsByOrganization(tenantDomain, false);
         } catch (APIManagementException e) {
             throw new ConformanceMediatorException(e.getMessage());
         }
