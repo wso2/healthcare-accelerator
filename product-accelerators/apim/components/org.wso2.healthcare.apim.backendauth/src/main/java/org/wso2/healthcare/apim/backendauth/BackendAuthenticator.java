@@ -38,7 +38,13 @@ import java.util.Map;
 public class BackendAuthenticator extends AbstractMediator {
 
     private static final Log log = LogFactory.getLog(BackendAuthenticator.class);
-    private String configName;
+    private String authType;
+    private String tokenEndpoint;
+    private String clientId;
+    private char[] clientSecret;
+    private String keyAlias;
+    private String configType;
+    private String configValue;
     private final Map<String, BackendAuthConfig> backendAuthConfig;
     private final PrivateKeyJWTBackendAuthenticator privateKeyJWTBackendAuthenticator;
     private final ClientCredentialsBackendAuthenticator clientCredentialsBackendAuthenticator;
@@ -56,14 +62,49 @@ public class BackendAuthenticator extends AbstractMediator {
             log.debug("Backend authenticator mediator is invoked.");
         }
 
-        BackendAuthConfig config = backendAuthConfig.get(configName);
+        BackendAuthConfig config;
+        if ("INLINE".equals(configType)){
+            if (log.isDebugEnabled()) {
+                log.debug("Config value is inline. Default config is: " + configValue);
+            }
+            if (backendAuthConfig.containsKey(configValue)) {
+                // default config is found in the backend auth configurations
+                config = backendAuthConfig.get(configValue);
+
+                // check for overridden values
+                overrideConfigs(config, messageContext);
+            } else {
+                if (log.isDebugEnabled()) {
+                    log.debug("Default Config value is not found in the backend auth configurations. All configs has to be inline");
+                }
+                config = new BackendAuthConfig();
+                //validating configs
+                if (this.authType == null || this.tokenEndpoint == null || this.clientId == null) {
+                    log.error("One or more required fields are missing in the message context.");
+                    return false;
+                } else if (Constants.POLICY_ATTR_AUTH_TYPE_PKJWT.equals(authType) && this.keyAlias == null) {
+                    log.error("Key alias is missing in the message context.");
+                    return false;
+                } else if (Constants.POLICY_ATTR_AUTH_TYPE_CLIENT_CRED.equals(authType) && this.clientSecret == null) {
+                    log.error("Client secret is missing in the message context.");
+                    return false;
+                }
+                config.setAuthType(authType);
+                config.setAuthEndpoint(tokenEndpoint);
+                config.setClientSecret(clientSecret);
+                config.setClientId(Utils.resolveConfigValues(clientId, messageContext));
+                config.setPrivateKeyAlias(Utils.resolveConfigValues(keyAlias, messageContext));
+            }
+        } else if ("PREDEFINED".equals(configType)) {
+            config = backendAuthConfig.get(configValue);
+        } else {
+            log.error("Invalid Config type is entered. Please contact the API administrator.");
+            return false;
+        }
+
         String accessToken;
         BackendAuthHandler currentAuthenticator;
 
-        if (configName == null) {
-            log.error("Auth type is not defined in the message context.");
-            return false;
-        }
         switch (config.getAuthType()) {
             case Constants.POLICY_ATTR_AUTH_TYPE_PKJWT:
                 if (log.isDebugEnabled()) {
@@ -104,12 +145,56 @@ public class BackendAuthenticator extends AbstractMediator {
         return true;
     }
 
-    public String getConfigName() {
-        return configName;
+    /**
+     * Override the default configurations with the values in the policy attributes or message context.
+     *
+     * @param config          BackendAuthConfig configuration object with default values
+     * @param messageContext  MessageContext synapse message context
+     */
+    private void overrideConfigs(BackendAuthConfig config, MessageContext messageContext){
+        if (this.authType != null) {
+            config.setAuthType(authType);
+        }
+        if (this.tokenEndpoint != null) {
+            config.setAuthEndpoint(tokenEndpoint);
+        }
+        if (this.clientId != null) {
+            config.setClientId(Utils.resolveConfigValues(this.clientId, messageContext));
+        }
+        if (this.clientSecret != null) {
+            config.setClientSecret(clientSecret);
+        }
+        if (this.keyAlias != null) {
+            config.setPrivateKeyAlias(Utils.resolveConfigValues(this.keyAlias, messageContext));
+        }
     }
 
-    @SuppressWarnings("Setter will be called by the ESB config builder")
-    public void setConfigName(String configName) {
-        this.configName = configName;
+    @SuppressWarnings("Setters will be called by the ESB config builder")
+    public void setAuthType(String authType) {
+        this.authType = authType;
+    }
+
+    public void setConfigType(String configType) {
+        this.configType = configType;
+    }
+
+    public void setConfigValue(String configValue) {
+        this.configValue = configValue;
+    }
+
+    public void setTokenEndpoint(String tokenEndpoint) {
+        this.tokenEndpoint = tokenEndpoint;
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+
+    public void setClientSecret(String clientSecret) {
+        this.clientSecret = clientSecret.toCharArray();
+    }
+
+    public void setKeyAlias(String keyAlias) {
+        this.keyAlias = keyAlias;
     }
 }

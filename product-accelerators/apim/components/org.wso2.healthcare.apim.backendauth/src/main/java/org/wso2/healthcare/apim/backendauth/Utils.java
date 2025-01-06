@@ -63,6 +63,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Utility class for the backend authentication.
@@ -294,4 +295,44 @@ public class Utils {
         throw exp;
     }
 
+    /**
+     * Evaluate synapse configValue and return the value.
+     * Supported expressions: $header:<header_name>, $ctx:<property_name>
+     *
+     * @param configValue      - configValue to evaluate
+     * @param messageContext  - message context
+     * @return - evaluated value
+     */
+    public static String resolveConfigValues(String configValue, MessageContext messageContext) {
+
+        String headerName = "";
+        if (!configValue.contains("$")) {
+            return configValue;
+        }
+        if (configValue.contains("$ctx")) {
+            return messageContext.getProperty(configValue.substring(configValue.indexOf(":") + 1)).toString();
+        }
+        if (configValue.contains("$header")) {
+            headerName = configValue.substring(configValue.indexOf(":") + 1);
+            log.info("Header name: " + headerName);
+        }
+        if (messageContext instanceof Axis2MessageContext) {
+            org.apache.axis2.context.MessageContext axisMsgCtx =
+                    ((Axis2MessageContext) messageContext).getAxis2MessageContext();
+            Object headers = axisMsgCtx.getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
+            if (headers instanceof Map) {
+                Map headersMap = (Map) headers;
+                if (headersMap.get(headerName) != null) {
+                    log.info("Header value: " + headersMap.get(headerName));
+                    return (String) headersMap.get(headerName);
+                }
+                axisMsgCtx.setProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS, headersMap);
+            } else {
+                log.warn("Transport headers are not available in the message context.");
+            }
+        } else {
+            log.error("Message context is not an instance of Axis2MessageContext.");
+        }
+        return null;
+    }
 }
