@@ -26,6 +26,7 @@ import org.apache.axiom.om.OMElement;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.carbon.CarbonConstants;
 import org.wso2.carbon.apimgt.api.model.Scope;
 import org.wso2.carbon.apimgt.api.model.policy.ApplicationPolicy;
 import org.wso2.carbon.apimgt.api.model.policy.PolicyConstants;
@@ -35,6 +36,7 @@ import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.utils.CarbonUtils;
 import org.wso2.healthcare.apim.core.OpenHealthcareException;
 import org.wso2.healthcare.apim.core.ReferenceHolder;
+import org.wso2.healthcare.apim.core.utils.CommonUtil;
 import org.wso2.healthcare.apim.core.utils.ScopeMgtUtil;
 import org.wso2.securevault.SecretResolver;
 import org.wso2.securevault.SecretResolverFactory;
@@ -44,7 +46,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -295,6 +299,11 @@ public class OpenHealthcareConfig {
                     fhirConfigTable.getString("server_name", () -> ConfigConstants.DEFAULT_FHIR_SERVER_NAME));
             fhirServerConfig.setServerVersion(
                     fhirConfigTable.getString("server_version", () -> ConfigConstants.DEFAULT_FHIR_SERVER_VERSION));
+            String serverMetadataPublishedTime = fhirConfigTable.getString("server_metadata_published_time");
+            fhirServerConfig.setCapabilityStatementPublishedTime(
+                    serverMetadataPublishedTime != null ?
+                            CommonUtil.convertTimeToLong(serverMetadataPublishedTime) : CommonUtil.getServerStartupTime()
+            );
         }
         return fhirServerConfig;
     }
