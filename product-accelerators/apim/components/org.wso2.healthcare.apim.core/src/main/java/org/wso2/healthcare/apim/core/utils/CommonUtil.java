@@ -21,7 +21,6 @@ package org.wso2.healthcare.apim.core.utils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.CarbonConstants;
-import org.wso2.healthcare.apim.core.OpenHealthcareComponent;
 
 import java.time.Instant;
 import java.util.UUID;
