@@ -21,6 +21,7 @@ package org.wso2.healthcare.apim.backendauth;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
@@ -49,6 +50,7 @@ import org.wso2.carbon.utils.CarbonUtils;
 import org.wso2.healthcare.apim.backendauth.tokenmgt.Token;
 import org.wso2.healthcare.apim.core.OpenHealthcareException;
 import org.wso2.healthcare.apim.core.OpenHealthcareRuntimeException;
+import org.wso2.healthcare.apim.core.config.BackendAuthConfig;
 
 import javax.net.ssl.SSLContext;
 import java.io.FileInputStream;
@@ -299,8 +301,8 @@ public class Utils {
      * Evaluate synapse configValue and return the value.
      * Supported expressions: $header:<header_name>, $ctx:<property_name>
      *
-     * @param configValue      - configValue to evaluate
-     * @param messageContext  - message context
+     * @param configValue    - configValue to evaluate
+     * @param messageContext - message context
      * @return - evaluated value
      */
     public static String resolveConfigValues(String configValue, MessageContext messageContext) {
@@ -322,8 +324,10 @@ public class Utils {
             Object headers = axisMsgCtx.getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
             if (headers instanceof Map) {
                 Map headersMap = (Map) headers;
-                if (headersMap.get(headerName) != null) {
-                    log.info("Header value: " + headersMap.get(headerName));
+                if (headersMap.containsKey(headerName)) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Header value: " + headersMap.get(headerName));
+                    }
                     return (String) headersMap.get(headerName);
                 }
                 axisMsgCtx.setProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS, headersMap);
@@ -334,5 +338,28 @@ public class Utils {
             log.error("Message context is not an instance of Axis2MessageContext.");
         }
         return null;
+    }
+
+    /**
+     * Validate the backend auth config.
+     * @param config - BackendAuthConfig object
+     * @return true if valid
+     */
+    public static boolean validateConfig(BackendAuthConfig config) {
+
+        if (StringUtils.isEmpty(config.getAuthType()) || StringUtils.isEmpty(config.getAuthEndpoint()) ||
+                StringUtils.isEmpty(config.getClientId())) {
+            log.error("One or more required configs are missing in the policy attributes.");
+            return false;
+        } else if (Constants.POLICY_ATTR_AUTH_TYPE_PKJWT.equals(config.getAuthType()) &&
+                StringUtils.isEmpty(config.getPrivateKeyAlias())) {
+            log.error("Key alias is missing in the policy attributes.");
+            return false;
+        } else if (Constants.POLICY_ATTR_AUTH_TYPE_CLIENT_CRED.equals(config.getAuthType()) &&
+                config.getClientSecret().length == 0) {
+            log.error("Client secret is missing in the policy attributes.");
+            return false;
+        }
+        return true;
     }
 }

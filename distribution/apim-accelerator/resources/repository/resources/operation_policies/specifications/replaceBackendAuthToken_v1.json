@@ -15,18 +15,9 @@
   ],
   "policyAttributes": [
     {
-      "name": "configType",
-      "displayName": "Configuration Type",
-      "description": "Type of configuration to be used for obtaining the backend auth token.",
-      "validationRegex": "^(PREDEFINED|INLINE)$",
-      "type": "Enum",
-      "allowedValues" : ["PREDEFINED","INLINE"],
-      "required": true
-    },
-    {
       "name": "configValue",
-      "displayName": "Default Configuration",
-      "description": "Name of the default config. This value has to be an exact match with a config name in the deployment.toml [[healthcare.backend.auth]] section.",
+      "displayName": "Predefined Configuration",
+      "description": "Name of a predefined config. This value has to be an exact match with a config name in the deployment.toml [[healthcare.backend.auth]] section.",
       "type": "String",
       "required": false
     },

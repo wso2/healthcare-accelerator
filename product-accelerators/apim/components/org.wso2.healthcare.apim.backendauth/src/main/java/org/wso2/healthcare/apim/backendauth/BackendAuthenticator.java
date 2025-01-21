@@ -18,6 +18,7 @@
 
 package org.wso2.healthcare.apim.backendauth;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.MessageContext;
@@ -43,9 +44,10 @@ public class BackendAuthenticator extends AbstractMediator {
     private String clientId;
     private char[] clientSecret;
     private String keyAlias;
-    private String configType;
+    @SuppressWarnings("FieldCanBeLocal")
     private String configValue;
     private final Map<String, BackendAuthConfig> backendAuthConfig;
+    private BackendAuthConfig masterConfig;
     private final PrivateKeyJWTBackendAuthenticator privateKeyJWTBackendAuthenticator;
     private final ClientCredentialsBackendAuthenticator clientCredentialsBackendAuthenticator;
 
@@ -53,7 +55,6 @@ public class BackendAuthenticator extends AbstractMediator {
         backendAuthConfig = OpenHealthcareEnvironment.getInstance().getConfig().getBackendAuthConfig();
         privateKeyJWTBackendAuthenticator = new PrivateKeyJWTBackendAuthenticator();
         clientCredentialsBackendAuthenticator = new ClientCredentialsBackendAuthenticator();
-
     }
 
     @Override
@@ -62,63 +63,35 @@ public class BackendAuthenticator extends AbstractMediator {
             log.debug("Backend authenticator mediator is invoked.");
         }
 
-        BackendAuthConfig config;
-        if ("INLINE".equals(configType)){
-            if (log.isDebugEnabled()) {
-                log.debug("Config value is inline. Default config is: " + configValue);
-            }
-            if (backendAuthConfig.containsKey(configValue)) {
-                // default config is found in the backend auth configurations
-                config = backendAuthConfig.get(configValue);
+        if (masterConfig.getClientId()!=null && masterConfig.getClientId().contains("$")){
+            masterConfig.setClientId(Utils.resolveConfigValues(this.clientId, messageContext));
+        }
+        if (masterConfig.getPrivateKeyAlias()!=null && masterConfig.getPrivateKeyAlias().contains("$")){
+            masterConfig.setPrivateKeyAlias(Utils.resolveConfigValues(this.keyAlias, messageContext));
+        }
 
-                // check for overridden values
-                overrideConfigs(config, messageContext);
-            } else {
-                if (log.isDebugEnabled()) {
-                    log.debug("Default Config value is not found in the backend auth configurations. All configs has to be inline");
-                }
-                config = new BackendAuthConfig();
-                //validating configs
-                if (this.authType == null || this.tokenEndpoint == null || this.clientId == null) {
-                    log.error("One or more required fields are missing in the message context.");
-                    return false;
-                } else if (Constants.POLICY_ATTR_AUTH_TYPE_PKJWT.equals(authType) && this.keyAlias == null) {
-                    log.error("Key alias is missing in the message context.");
-                    return false;
-                } else if (Constants.POLICY_ATTR_AUTH_TYPE_CLIENT_CRED.equals(authType) && this.clientSecret == null) {
-                    log.error("Client secret is missing in the message context.");
-                    return false;
-                }
-                config.setAuthType(authType);
-                config.setAuthEndpoint(tokenEndpoint);
-                config.setClientSecret(clientSecret);
-                config.setClientId(Utils.resolveConfigValues(clientId, messageContext));
-                config.setPrivateKeyAlias(Utils.resolveConfigValues(keyAlias, messageContext));
-            }
-        } else if ("PREDEFINED".equals(configType)) {
-            config = backendAuthConfig.get(configValue);
-        } else {
-            log.error("Invalid Config type is entered. Please contact the API administrator.");
+        if (!Utils.validateConfig(masterConfig)) {
+            log.error("Config validation failed.");
             return false;
         }
 
         String accessToken;
         BackendAuthHandler currentAuthenticator;
 
-        switch (config.getAuthType()) {
+        switch (masterConfig.getAuthType()) {
             case Constants.POLICY_ATTR_AUTH_TYPE_PKJWT:
                 if (log.isDebugEnabled()) {
                     log.debug("Auth type is PKJWT.");
                 }
                 currentAuthenticator = privateKeyJWTBackendAuthenticator;
-                accessToken = privateKeyJWTBackendAuthenticator.fetchValidAccessToken(messageContext, config);
+                accessToken = privateKeyJWTBackendAuthenticator.fetchValidAccessToken(messageContext, masterConfig);
                 break;
             case Constants.POLICY_ATTR_AUTH_TYPE_CLIENT_CRED:
                 if (log.isDebugEnabled()) {
                     log.debug("Auth type is CLIENT CREDENTIALS.");
                 }
                 currentAuthenticator = clientCredentialsBackendAuthenticator;
-                accessToken = clientCredentialsBackendAuthenticator.fetchValidAccessToken(messageContext, config);
+                accessToken = clientCredentialsBackendAuthenticator.fetchValidAccessToken(messageContext, masterConfig);
                 break;
             default:
                 log.error("Auth type is not supported.");
@@ -131,7 +104,7 @@ public class BackendAuthenticator extends AbstractMediator {
             Object headers = axisMsgCtx.getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
             if (headers instanceof Map) {
                 Map headersMap = (Map) headers;
-                if (headersMap.get(Constants.HEADER_NAME_AUTHORIZATION) != null) {
+                if (headersMap.containsKey(Constants.HEADER_NAME_AUTHORIZATION)) {
                     headersMap.remove(Constants.HEADER_NAME_AUTHORIZATION);
                 }
                 headersMap.put(Constants.HEADER_NAME_AUTHORIZATION, currentAuthenticator.getAuthHeaderScheme() + accessToken);
@@ -145,56 +118,48 @@ public class BackendAuthenticator extends AbstractMediator {
         return true;
     }
 
-    /**
-     * Override the default configurations with the values in the policy attributes or message context.
-     *
-     * @param config          BackendAuthConfig configuration object with default values
-     * @param messageContext  MessageContext synapse message context
-     */
-    private void overrideConfigs(BackendAuthConfig config, MessageContext messageContext){
-        if (this.authType != null) {
-            config.setAuthType(authType);
-        }
-        if (this.tokenEndpoint != null) {
-            config.setAuthEndpoint(tokenEndpoint);
-        }
-        if (this.clientId != null) {
-            config.setClientId(Utils.resolveConfigValues(this.clientId, messageContext));
-        }
-        if (this.clientSecret != null) {
-            config.setClientSecret(clientSecret);
-        }
-        if (this.keyAlias != null) {
-            config.setPrivateKeyAlias(Utils.resolveConfigValues(this.keyAlias, messageContext));
-        }
-    }
-
     @SuppressWarnings("Setters will be called by the ESB config builder")
     public void setAuthType(String authType) {
         this.authType = authType;
-    }
-
-    public void setConfigType(String configType) {
-        this.configType = configType;
+        if (!StringUtils.isEmpty(this.authType)){
+            masterConfig.setAuthType(authType);
+        }
     }
 
     public void setConfigValue(String configValue) {
         this.configValue = configValue;
+        if (backendAuthConfig.containsKey(configValue)) {
+            masterConfig = backendAuthConfig.get(configValue);
+        }else{
+            masterConfig = new BackendAuthConfig();
+        }
     }
 
     public void setTokenEndpoint(String tokenEndpoint) {
         this.tokenEndpoint = tokenEndpoint;
+        if (!StringUtils.isEmpty(tokenEndpoint)){
+            masterConfig.setAuthEndpoint(tokenEndpoint);
+        }
     }
 
     public void setClientId(String clientId) {
         this.clientId = clientId;
+        if (!StringUtils.isEmpty(clientId)){
+            masterConfig.setClientId(clientId);
+        }
     }
 
     public void setClientSecret(String clientSecret) {
         this.clientSecret = clientSecret.toCharArray();
+        if (this.clientSecret.length != 0){
+            masterConfig.setClientSecret(clientSecret.toCharArray());
+        }
     }
 
     public void setKeyAlias(String keyAlias) {
         this.keyAlias = keyAlias;
+        if (!StringUtils.isEmpty(keyAlias)){
+            masterConfig.setPrivateKeyAlias(keyAlias);
+        }
     }
 }

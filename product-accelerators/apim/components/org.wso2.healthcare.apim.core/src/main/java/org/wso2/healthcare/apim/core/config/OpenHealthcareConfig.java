@@ -591,15 +591,17 @@ public class OpenHealthcareConfig {
                     TomlTable beAuthTable = (TomlTable) notification;
                     BackendAuthConfig backendAuthConfig = new BackendAuthConfig();
                     if (StringUtils.isEmpty(beAuthTable.getString("name")) ||
-                            StringUtils.isEmpty(beAuthTable.getString("token_endpoint")) ||
-                            StringUtils.isEmpty(beAuthTable.getString("auth_type")) ||
-                            StringUtils.isEmpty(beAuthTable.getString("client_id"))) {
+                            StringUtils.isEmpty(beAuthTable.getString("token_endpoint"))) {
                         throw new OpenHealthcareException("One or more mandatory parameter/s in the notification " +
-                                "config missing. [Mandatory params - name, token_endpoint, client_id]");
+                                "config missing. [Mandatory params - name, token_endpoint]");
                     }
                     backendAuthConfig.setName(beAuthTable.getString("name"));
                     backendAuthConfig.setAuthEndpoint(beAuthTable.getString("token_endpoint"));
                     backendAuthConfig.setClientId(beAuthTable.getString("client_id"));
+                    String clientId = beAuthTable.getString("client_id", () -> null);
+                    if (clientId != null) {
+                        backendAuthConfig.setClientId(clientId);
+                    }
                     String keyAlias = beAuthTable.getString("private_key_alias", () -> null);
                     if (keyAlias != null) {
                         backendAuthConfig.setPrivateKeyAlias(keyAlias);

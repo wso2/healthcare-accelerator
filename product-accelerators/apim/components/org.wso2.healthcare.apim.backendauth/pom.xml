@@ -76,7 +76,6 @@
                         </Export-Package>
                         <Import-Package></Import-Package>
                         <DynamicImport-Package>*</DynamicImport-Package>
-                        <Fragment-Host>synapse-core</Fragment-Host>
                     </instructions>
                 </configuration>
             </plugin>
