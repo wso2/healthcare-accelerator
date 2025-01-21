@@ -44,7 +44,6 @@ public class BackendAuthenticator extends AbstractMediator {
     private String clientId;
     private char[] clientSecret;
     private String keyAlias;
-    @SuppressWarnings("FieldCanBeLocal")
     private String configValue;
     private final Map<String, BackendAuthConfig> backendAuthConfig;
     private BackendAuthConfig masterConfig;
@@ -63,10 +62,10 @@ public class BackendAuthenticator extends AbstractMediator {
             log.debug("Backend authenticator mediator is invoked.");
         }
 
-        if (masterConfig.getClientId()!=null && masterConfig.getClientId().contains("$")){
+        if (masterConfig.getClientId() != null && masterConfig.getClientId().contains("$")) {
             masterConfig.setClientId(Utils.resolveConfigValues(this.clientId, messageContext));
         }
-        if (masterConfig.getPrivateKeyAlias()!=null && masterConfig.getPrivateKeyAlias().contains("$")){
+        if (masterConfig.getPrivateKeyAlias() != null && masterConfig.getPrivateKeyAlias().contains("$")) {
             masterConfig.setPrivateKeyAlias(Utils.resolveConfigValues(this.keyAlias, messageContext));
         }
 
@@ -118,10 +117,9 @@ public class BackendAuthenticator extends AbstractMediator {
         return true;
     }
 
-    @SuppressWarnings("Setters will be called by the ESB config builder")
     public void setAuthType(String authType) {
         this.authType = authType;
-        if (!StringUtils.isEmpty(this.authType)){
+        if (!StringUtils.isEmpty(this.authType)) {
             masterConfig.setAuthType(authType);
         }
     }
@@ -130,35 +128,35 @@ public class BackendAuthenticator extends AbstractMediator {
         this.configValue = configValue;
         if (backendAuthConfig.containsKey(configValue)) {
             masterConfig = backendAuthConfig.get(configValue);
-        }else{
+        } else {
             masterConfig = new BackendAuthConfig();
         }
     }
 
     public void setTokenEndpoint(String tokenEndpoint) {
         this.tokenEndpoint = tokenEndpoint;
-        if (!StringUtils.isEmpty(tokenEndpoint)){
+        if (!StringUtils.isEmpty(tokenEndpoint)) {
             masterConfig.setAuthEndpoint(tokenEndpoint);
         }
     }
 
     public void setClientId(String clientId) {
         this.clientId = clientId;
-        if (!StringUtils.isEmpty(clientId)){
+        if (!StringUtils.isEmpty(clientId)) {
             masterConfig.setClientId(clientId);
         }
     }
 
     public void setClientSecret(String clientSecret) {
         this.clientSecret = clientSecret.toCharArray();
-        if (this.clientSecret.length != 0){
+        if (this.clientSecret.length != 0) {
             masterConfig.setClientSecret(clientSecret.toCharArray());
         }
     }
 
     public void setKeyAlias(String keyAlias) {
         this.keyAlias = keyAlias;
-        if (!StringUtils.isEmpty(keyAlias)){
+        if (!StringUtils.isEmpty(keyAlias)) {
             masterConfig.setPrivateKeyAlias(keyAlias);
         }
     }
