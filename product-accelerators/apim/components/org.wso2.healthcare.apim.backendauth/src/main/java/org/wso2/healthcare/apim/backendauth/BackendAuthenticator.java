@@ -62,12 +62,7 @@ public class BackendAuthenticator extends AbstractMediator {
             log.debug("Backend authenticator mediator is invoked.");
         }
 
-        if (masterConfig.getClientId() != null && masterConfig.getClientId().contains("$")) {
-            masterConfig.setClientId(Utils.resolveConfigValues(this.clientId, messageContext));
-        }
-        if (masterConfig.getPrivateKeyAlias() != null && masterConfig.getPrivateKeyAlias().contains("$")) {
-            masterConfig.setPrivateKeyAlias(Utils.resolveConfigValues(this.keyAlias, messageContext));
-        }
+        Utils.resolveConfigValues(masterConfig, messageContext);
 
         if (!Utils.validateConfig(masterConfig)) {
             log.error("Config validation failed.");

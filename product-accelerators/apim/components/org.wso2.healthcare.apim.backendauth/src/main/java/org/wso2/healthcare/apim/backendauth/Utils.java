@@ -301,23 +301,40 @@ public class Utils {
      * Evaluate synapse configValue and return the value.
      * Supported expressions: $header:<header_name>, $ctx:<property_name>
      *
-     * @param configValue    - configValue to evaluate
+     * @param config         - config object to evaluate
      * @param messageContext - message context
-     * @return - evaluated value
      */
-    public static String resolveConfigValues(String configValue, MessageContext messageContext) {
+    public static void resolveConfigValues(BackendAuthConfig config, MessageContext messageContext) {
 
-        String headerName = "";
-        if (!configValue.contains("$")) {
-            return configValue;
+        String headerName;
+        if (!config.getClientId().contains("$") || !config.getPrivateKeyAlias().contains("$")) {
+            return;
         }
-        if (configValue.contains("$ctx")) {
-            return messageContext.getProperty(configValue.substring(configValue.indexOf(":") + 1)).toString();
+        if (config.getClientId().contains("$ctx")) {
+            String configVal = config.getClientId();
+            config.setClientId(messageContext.getProperty(configVal.substring(configVal.indexOf(":") + 1)).toString());
         }
-        if (configValue.contains("$header")) {
-            headerName = configValue.substring(configValue.indexOf(":") + 1);
-            log.info("Header name: " + headerName);
+        if (config.getPrivateKeyAlias().contains("$ctx")) {
+            String configVal = config.getPrivateKeyAlias();
+            config.setPrivateKeyAlias(messageContext.getProperty(configVal.substring(configVal.indexOf(":") + 1)).toString());
         }
+        if (config.getClientId().contains("$header")) {
+            headerName = config.getClientId().substring(config.getClientId().indexOf(":") + 1);
+            if (log.isDebugEnabled()) {
+                log.debug("Header name: " + headerName);
+            }
+            config.setClientId(resolveFromHeaders(messageContext, headerName));
+        }
+        if (config.getPrivateKeyAlias().contains("$header")) {
+            headerName = config.getPrivateKeyAlias().substring(config.getPrivateKeyAlias().indexOf(":") + 1);
+            if (log.isDebugEnabled()) {
+                log.debug("Header name: " + headerName);
+            }
+            config.setClientId(resolveFromHeaders(messageContext, headerName));
+        }
+    }
+
+    private static String resolveFromHeaders(MessageContext messageContext, String headerName) {
         if (messageContext instanceof Axis2MessageContext) {
             org.apache.axis2.context.MessageContext axisMsgCtx =
                     ((Axis2MessageContext) messageContext).getAxis2MessageContext();
@@ -330,18 +347,20 @@ public class Utils {
                     }
                     return (String) headersMap.get(headerName);
                 }
-                axisMsgCtx.setProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS, headersMap);
             } else {
                 log.warn("Transport headers are not available in the message context.");
+                throw new OpenHealthcareRuntimeException("Transport headers are not available in the message context.");
             }
         } else {
             log.error("Message context is not an instance of Axis2MessageContext.");
+            throw new OpenHealthcareRuntimeException("Message context is not an instance of Axis2MessageContext.");
         }
         return null;
     }
 
     /**
      * Validate the backend auth config.
+     *
      * @param config - BackendAuthConfig object
      * @return true if valid
      */
