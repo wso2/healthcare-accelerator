@@ -18,6 +18,7 @@
 
 package org.wso2.healthcare.apim.backendauth;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.synapse.MessageContext;
@@ -38,8 +39,14 @@ import java.util.Map;
 public class BackendAuthenticator extends AbstractMediator {
 
     private static final Log log = LogFactory.getLog(BackendAuthenticator.class);
-    private String configName;
+    private String authType;
+    private String tokenEndpoint;
+    private String clientId;
+    private char[] clientSecret;
+    private String keyAlias;
+    private String configValue;
     private final Map<String, BackendAuthConfig> backendAuthConfig;
+    private BackendAuthConfig masterConfig;
     private final PrivateKeyJWTBackendAuthenticator privateKeyJWTBackendAuthenticator;
     private final ClientCredentialsBackendAuthenticator clientCredentialsBackendAuthenticator;
 
@@ -47,7 +54,6 @@ public class BackendAuthenticator extends AbstractMediator {
         backendAuthConfig = OpenHealthcareEnvironment.getInstance().getConfig().getBackendAuthConfig();
         privateKeyJWTBackendAuthenticator = new PrivateKeyJWTBackendAuthenticator();
         clientCredentialsBackendAuthenticator = new ClientCredentialsBackendAuthenticator();
-
     }
 
     @Override
@@ -56,28 +62,30 @@ public class BackendAuthenticator extends AbstractMediator {
             log.debug("Backend authenticator mediator is invoked.");
         }
 
-        BackendAuthConfig config = backendAuthConfig.get(configName);
+        Utils.resolveConfigValues(masterConfig, messageContext);
+
+        if (!Utils.validateConfig(masterConfig)) {
+            log.error("Config validation failed.");
+            return false;
+        }
+
         String accessToken;
         BackendAuthHandler currentAuthenticator;
 
-        if (configName == null) {
-            log.error("Auth type is not defined in the message context.");
-            return false;
-        }
-        switch (config.getAuthType()) {
+        switch (masterConfig.getAuthType()) {
             case Constants.POLICY_ATTR_AUTH_TYPE_PKJWT:
                 if (log.isDebugEnabled()) {
                     log.debug("Auth type is PKJWT.");
                 }
                 currentAuthenticator = privateKeyJWTBackendAuthenticator;
-                accessToken = privateKeyJWTBackendAuthenticator.fetchValidAccessToken(messageContext, config);
+                accessToken = privateKeyJWTBackendAuthenticator.fetchValidAccessToken(messageContext, masterConfig);
                 break;
             case Constants.POLICY_ATTR_AUTH_TYPE_CLIENT_CRED:
                 if (log.isDebugEnabled()) {
                     log.debug("Auth type is CLIENT CREDENTIALS.");
                 }
                 currentAuthenticator = clientCredentialsBackendAuthenticator;
-                accessToken = clientCredentialsBackendAuthenticator.fetchValidAccessToken(messageContext, config);
+                accessToken = clientCredentialsBackendAuthenticator.fetchValidAccessToken(messageContext, masterConfig);
                 break;
             default:
                 log.error("Auth type is not supported.");
@@ -90,7 +98,7 @@ public class BackendAuthenticator extends AbstractMediator {
             Object headers = axisMsgCtx.getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
             if (headers instanceof Map) {
                 Map headersMap = (Map) headers;
-                if (headersMap.get(Constants.HEADER_NAME_AUTHORIZATION) != null) {
+                if (headersMap.containsKey(Constants.HEADER_NAME_AUTHORIZATION)) {
                     headersMap.remove(Constants.HEADER_NAME_AUTHORIZATION);
                 }
                 headersMap.put(Constants.HEADER_NAME_AUTHORIZATION, currentAuthenticator.getAuthHeaderScheme() + accessToken);
@@ -104,12 +112,47 @@ public class BackendAuthenticator extends AbstractMediator {
         return true;
     }
 
-    public String getConfigName() {
-        return configName;
+    public void setAuthType(String authType) {
+        this.authType = authType;
+        if (!StringUtils.isEmpty(this.authType)) {
+            masterConfig.setAuthType(authType);
+        }
     }
 
-    @SuppressWarnings("Setter will be called by the ESB config builder")
-    public void setConfigName(String configName) {
-        this.configName = configName;
+    public void setConfigValue(String configValue) {
+        this.configValue = configValue;
+        if (backendAuthConfig.containsKey(configValue)) {
+            masterConfig = backendAuthConfig.get(configValue);
+        } else {
+            masterConfig = new BackendAuthConfig();
+        }
+    }
+
+    public void setTokenEndpoint(String tokenEndpoint) {
+        this.tokenEndpoint = tokenEndpoint;
+        if (!StringUtils.isEmpty(tokenEndpoint)) {
+            masterConfig.setAuthEndpoint(tokenEndpoint);
+        }
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+        if (!StringUtils.isEmpty(clientId)) {
+            masterConfig.setClientId(clientId);
+        }
+    }
+
+    public void setClientSecret(String clientSecret) {
+        this.clientSecret = clientSecret.toCharArray();
+        if (this.clientSecret.length != 0) {
+            masterConfig.setClientSecret(clientSecret.toCharArray());
+        }
+    }
+
+    public void setKeyAlias(String keyAlias) {
+        this.keyAlias = keyAlias;
+        if (!StringUtils.isEmpty(keyAlias)) {
+            masterConfig.setPrivateKeyAlias(keyAlias);
+        }
     }
 }

@@ -8,6 +8,13 @@ from an external OAuth 2.0-compliant authentication server and replacing the `Au
 retrieved token.
 
 ## Configuration Model
+This feature can be configured either through the predefined deployment.toml file using TOML configuration or inline by 
+specifying policy attributes directly when enabling the policy.
+
+### 1. PREDEFINED CONFIGURATION
+
+In PREDEFINED mode, configuration values must be specified in the deployment.toml file, and the configuration name 
+should be referenced in the 'Config Value' policy attribute.
 
 ```toml
 [[healthcare.backend.auth]]
@@ -29,6 +36,21 @@ private_key_alias = "key_alias" # Only for PKJWT flow
 | `client_secret`     | The client secret associated with the client ID (if applicable).                                                                                         | `client_secret`                               |
 | `private_key_alias` | The alias of the private key used for signing JWTs (if applicable). This key must be added to the Primary Keystore                                       | `key_alias`                                   |
 
+### 2. INLINE CONFIGURATION
+
+In Inline mode, 'Config Value' is treated as the master configuration element, while following configuration settings 
+can be overridden inline as needed. Additionally, `client_id` and `private_key_alias` configurations can be extracted from 
+request headers or context properties by specifying them as Synapse expressions (e.g., `$header:<header_name>, $ctx:<property_name>`).
+
+| Parameter           | Description                                                                                                        | Example Value                                 |
+|---------------------|--------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
+| `auth_type`         | Authentication type. Only `pkjwt` and `client_credentials` are supported atm.                                      | `pkjwt`                                       |
+| `token_endpoint`    | The URL of the external auth server's token endpoint for obtaining tokens.                                         | `https://external.auth.com:9443/oauth2/token` |
+| `client_id`         | The client identifier registered with the auth server. Synapse expressions allowed.                                | `client_id` or `$header:client_id`            |
+| `client_secret`     | The client secret associated with the client ID (if applicable).                                                   | `client_secret`                               |
+| `private_key_alias` | The alias of the private key used for signing JWTs (if applicable). This key must be added to the Primary Keystore | `key_alias` or `$ctx:property`                |
+
+Also, when using both predefined and inline configurations, the inline configuration will take precedence over the predefined configuration.
 
 ## Key Features
 
@@ -72,5 +94,8 @@ keytool -importkeystore \
   -srcalias <alias_used_in_p12> \
   -destalias <alias_to_be_used_in_JKS>
 ```
+
+### Limitations
+- This feature is recommended for use as API-level policy. There may be unexpected behavior if used as a global policy.
 
 
