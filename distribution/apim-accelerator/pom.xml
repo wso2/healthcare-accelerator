@@ -199,12 +199,19 @@
                                 <!--                                        <include name="api#openhealthcare#consent-mgt#v1.0.war"/>-->
                                 <!--                                    </fileset>-->
                                 <!--                                </copy>-->
-                                <copy todir="${product_home}/carbon-home/repository/deployment/server/webapps/authenticationendpoint">
-                                    <fileset dir="${basedir}/../../product-accelerators/apim/apps/authentication-portal/src/main/resources/custom"
-                                             includes="**"/>
-                                </copy>
-                                <copy todir="${product_home}/carbon-home/repository/deployment/server/webapps/accountrecoveryendpoint">
-                                    <fileset dir="${basedir}/../../product-accelerators/apim/apps/recovery-portal/src/main/resources/custom"
+<!--                                Revisit the usage and extend only required custom UI features: -->
+<!--                                todo: https://github.com/wso2-enterprise/open-healthcare/issues/1695-->
+<!--                                <copy todir="${product_home}/carbon-home/repository/deployment/server/webapps/authenticationendpoint">-->
+<!--                                    <fileset dir="${basedir}/../../product-accelerators/apim/apps/authentication-portal/src/main/resources/custom"-->
+<!--                                             includes="**"/>-->
+<!--                                </copy>-->
+<!--                                <copy todir="${product_home}/carbon-home/repository/deployment/server/webapps/accountrecoveryendpoint">-->
+<!--                                    <fileset dir="${basedir}/../../product-accelerators/apim/apps/recovery-portal/src/main/resources/custom"-->
+<!--                                             includes="**"/>-->
+<!--                                </copy>-->
+
+                                <copy todir="${product_home}/carbon-home/repository/resources/extensions">
+                                    <fileset dir="${basedir}/../../product-accelerators/apim/apps/identity-shared/src/main/resources/extensions"
                                              includes="**"/>
                                 </copy>
 
