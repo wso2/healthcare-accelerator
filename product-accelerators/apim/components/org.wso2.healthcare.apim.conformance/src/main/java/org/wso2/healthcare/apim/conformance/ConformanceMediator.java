@@ -52,6 +52,7 @@ import org.wso2.healthcare.apim.core.api.server.FHIRServerConfigAPI;
 
 import javax.xml.stream.XMLStreamException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -148,16 +149,21 @@ public class ConformanceMediator extends AbstractMediator {
     public CapabilityStatement createCapabilityStatement(String tenant, MessageContext mc)
             throws ConformanceMediatorException {
 
+        CapabilityStatement capabilityStatement = new CapabilityStatement();
+
         String serverName;
         String serverVersion;
         Registry registry;
         try {
             serverName = FHIRServerConfigAPI.getFHIRServerName();
             serverVersion = FHIRServerConfigAPI.getFHIRServerVersion();
+            capabilityStatement.setDate(new Date(FHIRServerConfigAPI.getCapabilityStatementPublishedTime()));
             registry = Util.getUserRegistry(tenant);
         } catch (RegistryException | UserStoreException e) {
+            LOG.error("Error occurred while retrieving User Registry for tenant", e);
             throw new ConformanceMediatorException("Error occurred while retrieving User Registry for tenant", e);
         } catch (OpenHealthcareException e) {
+            LOG.error("Error occurred while retrieving FHIR server configs", e);
             throw new ConformanceMediatorException("Error occurred while retrieving FHIR server configs", e);
         }
 
@@ -193,7 +199,6 @@ public class ConformanceMediator extends AbstractMediator {
         }
         String gatewayBaseURL = Util.getGatewayEnvURL();
 
-        CapabilityStatement capabilityStatement = new CapabilityStatement();
         capabilityStatement.setKind(CapabilityStatement.CapabilityStatementKind.INSTANCE);
         capabilityStatement.setName(serverName);
         capabilityStatement.setFhirVersion(Enumerations.FHIRVersion._4_0_1);

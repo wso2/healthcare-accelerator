@@ -125,7 +125,7 @@ then
     echo -e "[WARN] healthcare.fhir configuration already exist"
 else
     # code if not found
-    echo -e "\n[healthcare.fhir]\nserver_name = \"WSO2 Open Healthcare\"\nserver_version = \"1.2.0\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+    echo -e "\n[healthcare.fhir]\nserver_name = \"WSO2 Open Healthcare\"\nserver_version = \"1.2.0\"\n## The time when the capability statement was published. It should be given in the format of yyyy-MM-dd'T'HH:mm:ss.SSS'Z. If not provided the server start time is taken by default.\n#server_metadata_published_time = \"2025-01-06T14:45:30.123Z\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
 fi
 
 if grep -Fxq "[apim.jwt]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
