@@ -45,6 +45,7 @@
         <module>apim/components/org.wso2.healthcare.apim.backendauth</module>
         <module>apim/apps/authentication-portal</module>
         <module>apim/apps/recovery-portal</module>
+        <module>apim/apps/identity-shared</module>
     </modules>
 
 </project>
