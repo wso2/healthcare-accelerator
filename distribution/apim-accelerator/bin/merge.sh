@@ -97,9 +97,12 @@ cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/components/* "${WSO2_OH_APIM_
 cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/resources/* "${WSO2_OH_APIM_HOME}"/repository/resources
 cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/deployment/server/synapse-configs/* "${WSO2_OH_APIM_HOME}"/repository/deployment/server/synapse-configs
 if [ "${healthcare_theme_enabled}" == "true" ]; then
-  cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/deployment/server/webapps/* "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/
+  cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/resources/extensions/* "${WSO2_OH_APIM_HOME}"/repository/resources/extensions/
 else
-  cp -R "${WSO2_OH_ACCELERATOR_AUDIT_BACKUP}"/webapps/* "${WSO2_OH_APIM_HOME}"/repository/deployment/server/webapps/
+  ## remove extensions related to healthcare theme
+  find "${WSO2_OH_APIM_HOME}/repository/resources" -maxdepth 1 -type d -name "extensions*" -exec rm -r {} \;
+  find "${WSO2_OH_APIM_HOME}/repository/deployment/server/webapps/accountrecoveryendpoint/extensions" -mindepth 1 -exec rm -r {} \;
+  find "${WSO2_OH_APIM_HOME}/repository/deployment/server/webapps/authenticationendpoint/extensions" -mindepth 1 -exec rm -r {} \;
 fi
 
 if [ "${metadata_ep_enabled}" == "false" ]; then
@@ -157,10 +160,24 @@ if [ "${smart_on_fhir_enabled}" == "true" ]; then
   fi
 
   if grep -Fxq "[oauth]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-  then
-      # code if found
-      echo -e "[WARN] oauth configuration already exist"
-  fi
+    then
+        # code if found
+        echo -e "[WARN] oauth configuration already exist"
+    else
+        # code if not found
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS (BSD sed)
+              sed -i '' '/\[oauth\.grant_type\.token_exchange\]/i\
+[oauth]\
+show_display_name_in_consent_page = true\
+
+  ' "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+        else
+            # Linux (GNU sed)
+            sed -i '/\[oauth\.grant_type\.token_exchange\]/i [oauth]\nshow_display_name_in_consent_page = true' "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
+        fi
+        echo -e "[INFO] Added [oauth] configuration above [oauth.grant_type.token_exchange]"
+    fi
 
   if grep -Fxq "[oauth.grant_type.authorization_code]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
   then
