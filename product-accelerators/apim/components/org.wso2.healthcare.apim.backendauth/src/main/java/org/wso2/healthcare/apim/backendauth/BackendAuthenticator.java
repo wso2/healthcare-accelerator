@@ -120,11 +120,15 @@ public class BackendAuthenticator extends AbstractMediator {
     }
 
     public void setConfigValue(String configValue) {
+        masterConfig = new BackendAuthConfig();
         this.configValue = configValue;
         if (backendAuthConfig.containsKey(configValue)) {
-            masterConfig = backendAuthConfig.get(configValue);
-        } else {
-            masterConfig = new BackendAuthConfig();
+            BackendAuthConfig currentConfig = backendAuthConfig.get(configValue);
+            masterConfig.setAuthType(currentConfig.getAuthType());
+            masterConfig.setAuthEndpoint(currentConfig.getAuthEndpoint());
+            masterConfig.setClientId(currentConfig.getClientId());
+            masterConfig.setClientSecret(currentConfig.getClientSecret());
+            masterConfig.setPrivateKeyAlias(currentConfig.getPrivateKeyAlias());
         }
     }
 
