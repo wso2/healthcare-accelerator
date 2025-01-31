@@ -307,7 +307,7 @@ public class Utils {
     public static void resolveConfigValues(BackendAuthConfig config, MessageContext messageContext) {
 
         String headerName;
-        if (!config.getClientId().contains("$") || !config.getPrivateKeyAlias().contains("$")) {
+        if (!config.getClientId().contains("$") && !config.getPrivateKeyAlias().contains("$")) {
             return;
         }
         if (config.getClientId().contains("$ctx")) {
