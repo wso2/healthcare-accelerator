@@ -118,6 +118,8 @@ public class SmartConformanceMediator extends AbstractMediator {
         JSONArray scopesSupported = new JSONArray(Constants.SMART_SCOPES_SUPPORTED);
         JSONArray responseTypes = new JSONArray(Constants.SMART_RESPONSE_TYPES);
         JSONArray capabilities = new JSONArray(Constants.SMART_CAPABILITIES);
+        JSONArray codeChallengeMethods = new JSONArray().put(Util.getSignatureAlgorithm().contains(
+                "SHA256") ? "S256" : "");
         List<String> supportedGrantTypes = Util.getSupportedGrantTypes(tenant);
         JSONArray grantTypes = new JSONArray();
         if (supportedGrantTypes.contains(Constants.GRANT_TYPE_AUTH_CODE)) {
@@ -137,8 +139,7 @@ public class SmartConformanceMediator extends AbstractMediator {
             wellKnownURIDocument.put("revocation_endpoint", wellKnownResponse.get("revocation_endpoint").getAsString());
             wellKnownURIDocument.put("capabilities", capabilities);
             wellKnownURIDocument.put(Constants.SMART_GRANT_TYPES, grantTypes);
-            wellKnownURIDocument.put(Constants.SMART_CODE_CHALLENGE_METHODS, Util.getSignatureAlgorithm().contains(
-                    "SHA256") ? "S256" : "");
+            wellKnownURIDocument.put(Constants.SMART_CODE_CHALLENGE_METHODS, codeChallengeMethods);
             //the following attributes are required if the server supports sso-openid-connect capability.
             wellKnownURIDocument.put(Constants.SMART_JWKS_URI, Util.getKeyManagerProperty(tenant, 0,
                     "certificate_value"));
