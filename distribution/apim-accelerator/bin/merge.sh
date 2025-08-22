@@ -303,13 +303,32 @@ if [ "${healthcare_theme_enabled}" == "true" ]; then
   fi
 fi
 
-if grep -Fxq "#[apim.sync_runtime_artifacts.gateway.skip_list]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "[apim.sync_runtime_artifacts.gateway.skip_list]" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
-then
-    # code if found
-    echo -e "[WARN] apim.sync_runtime_artifacts.gateway.skip_list already exist"
+# Check if the section already exists
+if grep -Fxq "#[apim.sync_runtime_artifacts.gateway.skip_list]" "${WSO2_OH_APIM_HOME}/repository/conf/deployment.toml" || \
+   grep -Fxq "[apim.sync_runtime_artifacts.gateway.skip_list]" "${WSO2_OH_APIM_HOME}/repository/conf/deployment.toml"; then
+    echo -e "[WARN] apim.sync_runtime_artifacts.gateway.skip_list already exists"
 else
-    # code if not found
-    echo -e "\n[apim.sync_runtime_artifacts.gateway.skip_list]\napis = [\"_MetadataAPI_.xml\",\"_WellKnownResourceAPI_.xml\"]" | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
+    # Initialize the list
+    SKIP_LIST=""
+
+    # Conditionally add entries
+    if [ "$metadata_ep_enabled" = true ]; then
+        SKIP_LIST="\"_MetadataAPI_.xml\""
+    fi
+
+    if [ "$well_known_ep_enabled" = true ]; then
+        # Add comma if SKIP_LIST already has an item
+        if [ -n "$SKIP_LIST" ]; then
+            SKIP_LIST="$SKIP_LIST, "
+        fi
+        SKIP_LIST="${SKIP_LIST}\"_WellKnownResourceAPI_.xml\""
+    fi
+
+    # Only write the section if at least one item is added
+    if [ -n "$SKIP_LIST" ]; then
+        echo -e "\n[apim.sync_runtime_artifacts.gateway.skip_list]\napis = [${SKIP_LIST}]" | \
+            tee -a "${WSO2_OH_APIM_HOME}/repository/conf/deployment.toml" >/dev/null
+    fi
 fi
 
 if grep -Fxq "id = \"private_key_jwt_authenticator\"" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml || grep -Fxq "#id = \"private_key_jwt_authenticator\"" "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml
