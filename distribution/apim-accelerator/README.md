@@ -23,6 +23,10 @@ The WSO2 Healthcare API Manager Accelerator provides features tailored for healt
 2. Extract WSO2 Healthcare APIM Accelerator to `<WSO2_APIM_HOME>`. Let's call it `<WSO2_HC_APIM_ACC_HOME>`.
 3. [Optional] Check the accelerator configurations in `<WSO2_HC_APIM_ACC_HOME>/conf/config.toml` file to enable or disable features.
 4. Navigate to `<WSO2_HC_APIM_ACC_HOME>` directory and execute `./bin/merge.sh` command. This will copy the artifacts to the WSO2 APIM and add the required configurations.
+
+*Note: If you are using a [Distributed Deployment of WSO2 APIM](https://apim.docs.wso2.com/en/4.3.0/install-and-setup/setup/distributed-deployment/deploying-wso2-api-m-in-a-distributed-setup/), 
+you need to run the `merge.sh` script in all the nodes with the respective product profile. For more info, refer [Installing the Accelerator in a Distributed Deployment of WSO2 APIM](#installing-the-accelerator-in-a-distributed-deployment-of-wso2-apim).*
+
 5. Navigate to `<WSO2_APIM_HOME>` directory and execute `./bin/api-manager.sh` to start the APIM server with WSO2 Healthcare Accelerator.
 
 ## Audit Logs:
@@ -49,4 +53,22 @@ hc-accelerator
 ├── LICENSE.txt
 │   ├── bin
 │   ├── updates
+```
+
+## Installing the Accelerator in a Distributed Deployment of WSO2 APIM.
+WSO2 Healthcare API Manager Accelerator can be installed in a distributed deployment of WSO2 API Manager. 
+The same profile parameters used in the distributed deployment must be applied when running the `merge.sh` script.
+
+Note: Make sure to run the `merge.sh` script **after** performing the profile optimization steps mentioned in the [Distributed Deployment documentation](https://apim.docs.wso2.com/en/4.3.0/install-and-setup/setup/distributed-deployment/product-profiles/#running-the-api-m-profiles).
+
+Example: If you have a distributed deployment with Gateway, Control Plane profiles, you need to run the `merge.sh` script in both nodes with the respective profile parameters as below.
+
+**Gateway Node**
+```sh
+./<WSO2_HC_APIM_ACC_HOME>/bin/merge.sh -Dprofile=gateway-worker
+```
+
+**Control Plane Node**
+```sh
+./<WSO2_HC_APIM_ACC_HOME>/bin/merge.sh -Dprofile=control-plane
 ```

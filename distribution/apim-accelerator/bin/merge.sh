@@ -32,8 +32,8 @@ for arg in "$@"; do
   case $arg in
     -Dprofile=*)
       PROFILE="${arg#*=}"
-      if [[ "$PROFILE" != "gateway-worker" && "$PROFILE" != "control-plane" ]]; then
-        echo -e "[ERROR] Invalid value for -Dprofile. Allowed values are 'gateway-worker' or 'control-plane'."
+      if [[ "$PROFILE" != "gateway-worker" && "$PROFILE" != "control-plane" && "$PROFILE" != "traffic-manager" && "$PROFILE" != "api-key-manager-node" ]]; then
+        echo -e "[ERROR] Invalid value for -Dprofile. Allowed values are 'gateway-worker', 'control-plane', 'traffic-manager' or 'api-key-manager-node'."
         exit 1
       fi
       ;;
@@ -493,10 +493,10 @@ else
     echo -e "\n#[[healthcare.notification.mail]]\n#name = \"new_user_signup_requested_internal\"\n#enable = true\n#recipient_roles = \"approver,approver2\"\n#recipients = \"user1@test.com,user2@test.com\"\n#email_subject = \"[Developer Portal]  New User Signup - \${first_name} \${last_name}\"\n#email_body = \"<html><body>A new user has signed up at \${time} [\${timezone}] on \${date}. Visit the <a href=\\\"\${server_url}/admin/tasks/user-creation/\\\">admin portal</a> to approve/reject.</body></html>\"\n\n#[[healthcare.notification.mail]]\n#name = \"new_user_signup_completed_internal\"\n#enable = true\n#recipient_roles = \"approver,approver2\"\n#recipients = \"user1@test.com,user2@test.com\"\n#email_subject = \"[Developer Portal]  New User Signup - \${first_name} \${last_name}\"\n#email_body = \"<html><body>Signup request has been \${status} by \${approver}.</body></html>\"\n\n#[[healthcare.notification.mail]]\n#name = \"new_user_signup_completed_external\"\n#enable = true\n#email_subject = \"[\${org_name} Developer Portal] Your Signup Request Status\"\n#email_body = \"<html><body>Your signup request has been \${status}. Please email \${contact_email} if you have any questions.<br/>Thank you for your interest.<br/></body></html>\"\n\n#[[healthcare.notification.mail]]\n#name = \"new_app_creation_requested_internal\"\n#enable = true\n#recipient_roles = \"approver,approver2\"\n#recipients = \"user1@test.com,user2@test.com\"\n#email_subject = \"[Developer Portal] New Application \${app_name} Created by \${user_name}\"\n#email_body = \"<html><body>A new application has been created. Visit the <a href=\\\"\${server_url}/admin/tasks/application-creation/\\\">admin portal</a> to approve/reject.</body></html>\"\n\n#[[healthcare.notification.mail]]\n#name = \"new_app_creation_completed_internal\"\n#enable = true\n#recipient_roles = \"approver,approver2\"\n#recipients = \"user1@test.com,user2@test.com\"\n#email_subject = \"[Developer Portal] New Application \${app_name} Created by \${user_name}\"\n#email_body = \"<html><body>Application creation request has been \${status} by \${approver}.</body></html>\"\n\n#[[healthcare.notification.mail]]\n#name = \"new_app_creation_completed_external\"\n#enable = true\n#email_subject = \"[\${org_name} Developer Portal] Your Application Creation Request Status\"\n#email_body = \"<html><body>Your request to create the application \${app_name} has been \${status}. Please email \${contact_email} if you have any questions.<br/>Thank you for your interest.<br/></body></html>\""  | tee -a "${WSO2_OH_APIM_HOME}"/repository/conf/deployment.toml >/dev/null
 fi
 
-if [[ "$PROFILE" == "control-plane" ]]; then
+if [[ "$PROFILE" == "control-plane"  || "$PROFILE" == "traffic-manager" || "$PROFILE" == "api-key-manager-node" ]]; then
   # control-plane specific logic
 
-  echo -e "[INFO] Removing specific message formatters and builders for control-plane profile."
+  echo -e "[INFO] Removing specific message formatters and builders for $PROFILE profile."
   # Remove the ApplicationXMLFormatter for application/fhir+xml
   sed -i.bak '/\[\[custom_message_formatters\]\]/,/content_type = "application\/fhir\+xml"/d' "${WSO2_OH_APIM_HOME}/repository/conf/deployment.toml"
   # Remove the ApplicationXMLBuilder for application/fhir+xml
@@ -507,7 +507,7 @@ if [[ "$PROFILE" == "control-plane" ]]; then
   sed -i.bak '/\[\[custom_message_builders\]\]/,/content_type = "application\/fhir\+json"/d' "${WSO2_OH_APIM_HOME}/repository/conf/deployment.toml"
   # Clean up backup file created by sed
   rm -f "${WSO2_OH_APIM_HOME}/repository/conf/deployment.toml.bak"
-  echo -e "[INFO] Removed message formatters and builders for control-plane profile."
+  echo -e "[INFO] Removed message formatters and builders for $PROFILE profile."
 
   echo -e "[INFO] Applying configurations for Claims and Scopes."
   configure_claims_and_scopes
