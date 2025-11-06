@@ -308,27 +308,41 @@ public class Utils {
 
         String headerName;
         if (!config.getClientId().contains("$") && !config.getPrivateKeyAlias().contains("$")) {
+            if (log.isDebugEnabled()) {
+                log.debug("Not configured runtime config resolution. Continuing with static configs.");
+            }
             return;
         }
         if (config.getClientId().contains("$ctx")) {
             String configVal = config.getClientId();
-            config.setClientId(messageContext.getProperty(configVal.substring(configVal.indexOf(":") + 1)).toString());
+            String clientId = messageContext.getProperty(configVal.substring(configVal.indexOf(":") +
+                    1)).toString();
+            if (log.isDebugEnabled()) {
+                log.debug("Client ID context property: " + clientId);
+            }
+            config.setClientId(clientId);
         }
         if (config.getPrivateKeyAlias().contains("$ctx")) {
             String configVal = config.getPrivateKeyAlias();
-            config.setPrivateKeyAlias(messageContext.getProperty(configVal.substring(configVal.indexOf(":") + 1)).toString());
+            String keyAlias = messageContext.getProperty(configVal.substring(configVal.indexOf(":") +
+                    1)).toString();
+
+            if (log.isDebugEnabled()) {
+                log.debug("Key alias context property: " + keyAlias);
+            }
+            config.setPrivateKeyAlias(keyAlias);
         }
         if (config.getClientId().contains("$header")) {
             headerName = config.getClientId().substring(config.getClientId().indexOf(":") + 1);
             if (log.isDebugEnabled()) {
-                log.debug("Header name: " + headerName);
+                log.debug("Client ID Header name: " + headerName);
             }
             config.setClientId(resolveFromHeaders(messageContext, headerName));
         }
         if (config.getPrivateKeyAlias().contains("$header")) {
             headerName = config.getPrivateKeyAlias().substring(config.getPrivateKeyAlias().indexOf(":") + 1);
             if (log.isDebugEnabled()) {
-                log.debug("Header name: " + headerName);
+                log.debug("Key Alias Header name: " + headerName);
             }
             config.setClientId(resolveFromHeaders(messageContext, headerName));
         }
@@ -346,6 +360,10 @@ public class Utils {
                         log.debug("Header value: " + headersMap.get(headerName));
                     }
                     return (String) headersMap.get(headerName);
+                } else {
+                    log.warn("Configured header is not available in the request headers map");
+                    throw new OpenHealthcareRuntimeException("Configured header is not available in the request " +
+                            "headers map");
                 }
             } else {
                 log.warn("Transport headers are not available in the message context.");
@@ -355,7 +373,6 @@ public class Utils {
             log.error("Message context is not an instance of Axis2MessageContext.");
             throw new OpenHealthcareRuntimeException("Message context is not an instance of Axis2MessageContext.");
         }
-        return null;
     }
 
     /**
@@ -378,6 +395,9 @@ public class Utils {
                 config.getClientSecret().length == 0) {
             log.error("Client secret is missing in the policy attributes.");
             return false;
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("Config validation Successful.");
         }
         return true;
     }

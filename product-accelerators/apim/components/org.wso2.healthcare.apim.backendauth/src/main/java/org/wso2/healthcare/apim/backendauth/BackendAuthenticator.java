@@ -44,7 +44,7 @@ public class BackendAuthenticator extends AbstractMediator {
     private String clientId;
     private char[] clientSecret;
     private String keyAlias;
-    private String configValue;
+    private String configName;
     private final Map<String, BackendAuthConfig> backendAuthConfig;
     private BackendAuthConfig masterConfig;
     private final PrivateKeyJWTBackendAuthenticator privateKeyJWTBackendAuthenticator;
@@ -119,11 +119,11 @@ public class BackendAuthenticator extends AbstractMediator {
         }
     }
 
-    public void setConfigValue(String configValue) {
+    public void setConfigName(String configName) {
         masterConfig = new BackendAuthConfig();
-        this.configValue = configValue;
-        if (backendAuthConfig.containsKey(configValue)) {
-            BackendAuthConfig currentConfig = backendAuthConfig.get(configValue);
+        this.configName = configName;
+        if (backendAuthConfig.containsKey(configName)) {
+            BackendAuthConfig currentConfig = backendAuthConfig.get(configName);
             masterConfig.setAuthType(currentConfig.getAuthType());
             masterConfig.setAuthEndpoint(currentConfig.getAuthEndpoint());
             masterConfig.setClientId(currentConfig.getClientId());
