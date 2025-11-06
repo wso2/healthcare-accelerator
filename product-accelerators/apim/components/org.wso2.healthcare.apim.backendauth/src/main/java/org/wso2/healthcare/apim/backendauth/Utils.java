@@ -239,6 +239,12 @@ public class Utils {
         CloseableHttpClient httpsClient = Utils.getHttpsClient(trustStorePath, trustStorePass);
         CloseableHttpResponse response;
         try {
+            if (log.isDebugEnabled()) {
+                log.debug("Token request URI: " + postRequest.getURI());
+                for (NameValuePair parameter : parameters) {
+                    log.debug("Parameter: " + parameter.getName() + " = " + parameter.getValue());
+                }
+            }
             response = httpsClient.execute(postRequest);
             HttpEntity responseEntity = response.getEntity();
             if (responseEntity == null) {
@@ -304,51 +310,76 @@ public class Utils {
      * @param config         - config object to evaluate
      * @param messageContext - message context
      */
-    public static void resolveConfigValues(BackendAuthConfig config, MessageContext messageContext) {
+    public static void resolveConfigValues(BackendAuthConfig config, MessageContext messageContext) throws OpenHealthcareRuntimeException {
 
         String headerName;
-        if (!config.getClientId().contains("$") && !config.getPrivateKeyAlias().contains("$")) {
-            if (log.isDebugEnabled()) {
-                log.debug("Not configured runtime config resolution. Continuing with static configs.");
-            }
-            return;
-        }
-        if (config.getClientId().contains("$ctx")) {
-            String configVal = config.getClientId();
-            String clientId = messageContext.getProperty(configVal.substring(configVal.indexOf(":") +
-                    1)).toString();
-            if (log.isDebugEnabled()) {
-                log.debug("Client ID context property: " + clientId);
-            }
-            config.setClientId(clientId);
-        }
-        if (config.getPrivateKeyAlias().contains("$ctx")) {
-            String configVal = config.getPrivateKeyAlias();
-            String keyAlias = messageContext.getProperty(configVal.substring(configVal.indexOf(":") +
-                    1)).toString();
+        try {
 
-            if (log.isDebugEnabled()) {
-                log.debug("Key alias context property: " + keyAlias);
+            if (!config.getClientId().contains("$") && !config.getPrivateKeyAlias().contains("$")) {
+                if (log.isDebugEnabled()) {
+                    log.debug("Not configured runtime config resolution. Continuing with static configs.");
+                }
+                return;
             }
-            config.setPrivateKeyAlias(keyAlias);
-        }
-        if (config.getClientId().contains("$header")) {
-            headerName = config.getClientId().substring(config.getClientId().indexOf(":") + 1);
-            if (log.isDebugEnabled()) {
-                log.debug("Client ID Header name: " + headerName);
+            // Validate format for clientId
+            if (config.getClientId().contains("$") && !config.getClientId().contains(":")) {
+                throw new OpenHealthcareRuntimeException("Invalid configuration format for clientId: " +
+                        config.getClientId());
             }
-            config.setClientId(resolveFromHeaders(messageContext, headerName));
-        }
-        if (config.getPrivateKeyAlias().contains("$header")) {
-            headerName = config.getPrivateKeyAlias().substring(config.getPrivateKeyAlias().indexOf(":") + 1);
-            if (log.isDebugEnabled()) {
-                log.debug("Key Alias Header name: " + headerName);
+
+            // Validate format for privateKeyAlias
+            if (config.getPrivateKeyAlias().contains("$") && !config.getPrivateKeyAlias().contains(":")) {
+                throw new OpenHealthcareRuntimeException("Invalid configuration format for privateKeyAlias: " +
+                        config.getPrivateKeyAlias());
             }
-            config.setClientId(resolveFromHeaders(messageContext, headerName));
+            if (config.getClientId().contains("$ctx")) {
+                String configVal = config.getClientId();
+                Object clientIdProperty = messageContext.getProperty(configVal.substring(
+                        configVal.indexOf(":") + 1));
+                if (clientIdProperty == null) {
+                    throw new OpenHealthcareRuntimeException("Context property not found: " + configVal);
+                }
+                String clientId = clientIdProperty.toString();
+                if (log.isDebugEnabled()) {
+                    log.debug("Client ID context property: " + clientId);
+                }
+                config.setClientId(clientId);
+            }
+            if (config.getPrivateKeyAlias().contains("$ctx")) {
+                String configVal = config.getPrivateKeyAlias();
+
+                Object keyAliasProperty = messageContext.getProperty(configVal.substring(
+                        configVal.indexOf(":") + 1));
+                if (keyAliasProperty == null) {
+                    throw new OpenHealthcareRuntimeException("Context property not found: " + configVal);
+                }
+                String keyAlias = keyAliasProperty.toString();
+                if (log.isDebugEnabled()) {
+                    log.debug("Key alias context property: " + keyAlias);
+                }
+                config.setPrivateKeyAlias(keyAlias);
+            }
+            if (config.getClientId().contains("$header")) {
+                headerName = config.getClientId().substring(config.getClientId().indexOf(":") + 1);
+                if (log.isDebugEnabled()) {
+                    log.debug("Client ID Header name: " + headerName);
+                }
+                config.setClientId(resolveFromHeaders(messageContext, headerName));
+            }
+            if (config.getPrivateKeyAlias().contains("$header")) {
+                headerName = config.getPrivateKeyAlias().substring(config.getPrivateKeyAlias().indexOf(":") + 1);
+                if (log.isDebugEnabled()) {
+                    log.debug("Key Alias Header name: " + headerName);
+                }
+                config.setPrivateKeyAlias(resolveFromHeaders(messageContext, headerName));
+            }
+        } catch (OpenHealthcareRuntimeException e) {
+            log.error("Error occurred while resolving runtime configuration values.", e);
+            throw e;
         }
     }
 
-    private static String resolveFromHeaders(MessageContext messageContext, String headerName) {
+    private static String resolveFromHeaders(MessageContext messageContext, String headerName) throws OpenHealthcareRuntimeException {
         if (messageContext instanceof Axis2MessageContext) {
             org.apache.axis2.context.MessageContext axisMsgCtx =
                     ((Axis2MessageContext) messageContext).getAxis2MessageContext();
@@ -361,7 +392,7 @@ public class Utils {
                     }
                     return (String) headersMap.get(headerName);
                 } else {
-                    log.warn("Configured header is not available in the request headers map");
+                    log.warn("Configured header:" + headerName + " is not available in the request headers map");
                     throw new OpenHealthcareRuntimeException("Configured header is not available in the request " +
                             "headers map");
                 }
