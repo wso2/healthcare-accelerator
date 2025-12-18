@@ -241,9 +241,6 @@ public class Utils {
         try {
             if (log.isDebugEnabled()) {
                 log.debug("Token request URI: " + postRequest.getURI());
-                for (NameValuePair parameter : parameters) {
-                    log.debug("Parameter: " + parameter.getName() + " = " + parameter.getValue());
-                }
             }
             response = httpsClient.execute(postRequest);
             HttpEntity responseEntity = response.getEntity();
