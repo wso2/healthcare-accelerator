@@ -51,6 +51,9 @@ public class BackendAuthenticator extends AbstractMediator {
     private final ClientCredentialsBackendAuthenticator clientCredentialsBackendAuthenticator;
 
     public BackendAuthenticator() throws OpenHealthcareException {
+        if (log.isDebugEnabled()) {
+            log.debug("Backend authenticator mediator is initialized.");
+        }
         backendAuthConfig = OpenHealthcareEnvironment.getInstance().getConfig().getBackendAuthConfig();
         privateKeyJWTBackendAuthenticator = new PrivateKeyJWTBackendAuthenticator();
         clientCredentialsBackendAuthenticator = new ClientCredentialsBackendAuthenticator();
@@ -61,55 +64,64 @@ public class BackendAuthenticator extends AbstractMediator {
         if (log.isDebugEnabled()) {
             log.debug("Backend authenticator mediator is invoked.");
         }
+        try {
+            masterConfig.setClientId(clientId);
+            masterConfig.setPrivateKeyAlias(keyAlias);
+            Utils.resolveConfigValues(masterConfig, messageContext);
 
-        Utils.resolveConfigValues(masterConfig, messageContext);
-
-        if (!Utils.validateConfig(masterConfig)) {
-            log.error("Config validation failed.");
-            return false;
-        }
-
-        String accessToken;
-        BackendAuthHandler currentAuthenticator;
-
-        switch (masterConfig.getAuthType()) {
-            case Constants.POLICY_ATTR_AUTH_TYPE_PKJWT:
-                if (log.isDebugEnabled()) {
-                    log.debug("Auth type is PKJWT.");
-                }
-                currentAuthenticator = privateKeyJWTBackendAuthenticator;
-                accessToken = privateKeyJWTBackendAuthenticator.fetchValidAccessToken(messageContext, masterConfig);
-                break;
-            case Constants.POLICY_ATTR_AUTH_TYPE_CLIENT_CRED:
-                if (log.isDebugEnabled()) {
-                    log.debug("Auth type is CLIENT CREDENTIALS.");
-                }
-                currentAuthenticator = clientCredentialsBackendAuthenticator;
-                accessToken = clientCredentialsBackendAuthenticator.fetchValidAccessToken(messageContext, masterConfig);
-                break;
-            default:
-                log.error("Auth type is not supported.");
+            if (!Utils.validateConfig(masterConfig)) {
+                log.error("Config validation failed.");
                 return false;
-        }
-
-        if (messageContext instanceof Axis2MessageContext) {
-            org.apache.axis2.context.MessageContext axisMsgCtx =
-                    ((Axis2MessageContext) messageContext).getAxis2MessageContext();
-            Object headers = axisMsgCtx.getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
-            if (headers instanceof Map) {
-                Map headersMap = (Map) headers;
-                if (headersMap.containsKey(Constants.HEADER_NAME_AUTHORIZATION)) {
-                    headersMap.remove(Constants.HEADER_NAME_AUTHORIZATION);
-                }
-                headersMap.put(Constants.HEADER_NAME_AUTHORIZATION, currentAuthenticator.getAuthHeaderScheme() + accessToken);
-                axisMsgCtx.setProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS, headersMap);
-            } else {
-                log.warn("Transport headers are not available in the message context.");
             }
-        } else {
-            log.error("Message context is not an instance of Axis2MessageContext.");
+
+            String accessToken;
+            BackendAuthHandler currentAuthenticator;
+
+            switch (masterConfig.getAuthType()) {
+                case Constants.POLICY_ATTR_AUTH_TYPE_PKJWT:
+                    if (log.isDebugEnabled()) {
+                        log.debug("Auth type is PKJWT.");
+                    }
+                    currentAuthenticator = privateKeyJWTBackendAuthenticator;
+                    accessToken = privateKeyJWTBackendAuthenticator.fetchValidAccessToken(messageContext, masterConfig);
+                    break;
+                case Constants.POLICY_ATTR_AUTH_TYPE_CLIENT_CRED:
+                    if (log.isDebugEnabled()) {
+                        log.debug("Auth type is CLIENT CREDENTIALS.");
+                    }
+                    currentAuthenticator = clientCredentialsBackendAuthenticator;
+                    accessToken = clientCredentialsBackendAuthenticator.fetchValidAccessToken(messageContext, masterConfig);
+                    break;
+                default:
+                    log.error("Auth type is not supported.");
+                    return false;
+            }
+
+            if (messageContext instanceof Axis2MessageContext) {
+                org.apache.axis2.context.MessageContext axisMsgCtx =
+                        ((Axis2MessageContext) messageContext).getAxis2MessageContext();
+                Object headers = axisMsgCtx.getProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS);
+                if (headers instanceof Map) {
+                    Map headersMap = (Map) headers;
+                    if (headersMap.containsKey(Constants.HEADER_NAME_AUTHORIZATION)) {
+                        headersMap.remove(Constants.HEADER_NAME_AUTHORIZATION);
+                    }
+                    headersMap.put(Constants.HEADER_NAME_AUTHORIZATION, currentAuthenticator.getAuthHeaderScheme() + accessToken);
+                    axisMsgCtx.setProperty(org.apache.axis2.context.MessageContext.TRANSPORT_HEADERS, headersMap);
+                    if (log.isDebugEnabled()) {
+                        log.debug("Transport headers updated with Authorization header. Headers count = "+ headersMap.size());
+                    }
+                } else {
+                    log.warn("Transport headers are not available in the message context.");
+                }
+            } else {
+                log.error("Message context is not an instance of Axis2MessageContext.");
+            }
+            return true;
+        } catch (Exception e) {
+            log.error("Exception occurred in the mediator", e);
         }
-        return true;
+        return false;
     }
 
     public void setAuthType(String authType) {
