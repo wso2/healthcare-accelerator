@@ -105,14 +105,6 @@ public class SmartConformanceMediator extends AbstractMediator {
 
     public JSONObject createWellKnownURIPayload(String tenant, MessageContext mc) {
 
-        JsonObject wellKnownResponse;
-        if (ConformanceDataHolder.getInstance().getWellKnownResponse() != null) {
-            wellKnownResponse = ConformanceDataHolder.getInstance().getWellKnownResponse();
-        } else {
-            wellKnownResponse = Util.getWellKnownResponse(mc);
-            ConformanceDataHolder.getInstance().setWellKnownResponse(wellKnownResponse);
-        }
-
         JSONObject wellKnownURIDocument = new JSONObject();
         JSONArray authMethods = new JSONArray(Constants.SMART_AUTH_METHODS);
         JSONArray scopesSupported = new JSONArray(Constants.SMART_SCOPES_SUPPORTED);
@@ -131,12 +123,14 @@ public class SmartConformanceMediator extends AbstractMediator {
             grantTypes.put(Constants.GRANT_TYPE_CLIENT_CREDENTIALS);
         }
         try {
-            wellKnownURIDocument.put("authorization_endpoint", wellKnownResponse.get("authorization_endpoint").getAsString());
-            wellKnownURIDocument.put("token_endpoint", wellKnownResponse.get("token_endpoint").getAsString());
+            wellKnownURIDocument.put("authorization_endpoint", Util.getKeyManagerProperty(tenant, 0,
+                    "authorize_endpoint"));
+            wellKnownURIDocument.put("token_endpoint", Util.getKeyManagerProperty(tenant, 0, "token_endpoint"));
             wellKnownURIDocument.put("token_endpoint_auth_methods_supported", authMethods);
             wellKnownURIDocument.put("scopes_supported", scopesSupported);
             wellKnownURIDocument.put("response_types_supported", responseTypes);
-            wellKnownURIDocument.put("revocation_endpoint", wellKnownResponse.get("revocation_endpoint").getAsString());
+            wellKnownURIDocument.put("revocation_endpoint", Util.getKeyManagerProperty(tenant, 0,
+                    "revocation_endpoint"));
             wellKnownURIDocument.put("capabilities", capabilities);
             wellKnownURIDocument.put(Constants.SMART_GRANT_TYPES, grantTypes);
             wellKnownURIDocument.put(Constants.SMART_CODE_CHALLENGE_METHODS, codeChallengeMethods);
