@@ -33,6 +33,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.wso2.healthcare.apim.conformance.internal.ConformanceDataHolder;
+import org.wso2.healthcare.apim.core.OpenHealthcareException;
+import org.wso2.healthcare.apim.core.api.smart.SmartConfigAPI;
 
 import javax.xml.stream.XMLStreamException;
 import java.util.List;
@@ -126,20 +128,21 @@ public class SmartConformanceMediator extends AbstractMediator {
             wellKnownURIDocument.put("authorization_endpoint", Util.getKeyManagerProperty(tenant, 0,
                     "authorize_endpoint"));
             wellKnownURIDocument.put("token_endpoint", Util.getKeyManagerProperty(tenant, 0, "token_endpoint"));
+            wellKnownURIDocument.put("introspection_endpoint", Util.getKeyManagerProperty(tenant, 0, "introspection_endpoint"));
             wellKnownURIDocument.put("token_endpoint_auth_methods_supported", authMethods);
             wellKnownURIDocument.put("scopes_supported", scopesSupported);
             wellKnownURIDocument.put("response_types_supported", responseTypes);
             wellKnownURIDocument.put("revocation_endpoint", Util.getKeyManagerProperty(tenant, 0,
-                    "revocation_endpoint"));
+                    "revoke_endpoint"));
             wellKnownURIDocument.put("capabilities", capabilities);
             wellKnownURIDocument.put(Constants.SMART_GRANT_TYPES, grantTypes);
             wellKnownURIDocument.put(Constants.SMART_CODE_CHALLENGE_METHODS, codeChallengeMethods);
             //the following attributes are required if the server supports sso-openid-connect capability.
-            wellKnownURIDocument.put(Constants.SMART_JWKS_URI, Util.getKeyManagerProperty(tenant, 0,
+            wellKnownURIDocument.put("jwks_uri", Util.getKeyManagerProperty(tenant, 0,
                     "certificate_value"));
-            wellKnownURIDocument.put(Constants.SMART_OAUTH_ISSUER, Util.getKeyManagerProperty(tenant, 0, "issuer"));
+            wellKnownURIDocument.put("issuer", Util.getKeyManagerProperty(tenant, 0, "issuer"));
         } catch (JSONException e) {
-            throw new ConformanceMediatorException("Error occurred while creating the SMART config payload");
+            throw new ConformanceMediatorException("Error occurred while creating the SMART config payload", e);
         }
         return wellKnownURIDocument;
     }
