@@ -18,7 +18,6 @@
 
 package org.wso2.healthcare.apim.conformance;
 
-import com.google.gson.JsonObject;
 import org.apache.axiom.om.OMElement;
 import org.apache.axiom.om.util.AXIOMUtil;
 import org.apache.axis2.AxisFault;
@@ -32,9 +31,6 @@ import org.hl7.fhir.r4.model.OperationOutcome;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.wso2.healthcare.apim.conformance.internal.ConformanceDataHolder;
-import org.wso2.healthcare.apim.core.OpenHealthcareException;
-import org.wso2.healthcare.apim.core.api.smart.SmartConfigAPI;
 
 import javax.xml.stream.XMLStreamException;
 import java.util.List;
@@ -54,7 +50,7 @@ public class SmartConformanceMediator extends AbstractMediator {
             log.debug("SmartConformanceMediator Started");
         }
         String tenant = mc.getProperty(Constants.TENANT_INFO_DOMAIN).toString();
-        JSONObject resource = createWellKnownURIPayload(tenant, mc);
+        JSONObject resource = createWellKnownURIPayload(tenant);
         if (mc instanceof Axis2MessageContext) {
             org.apache.axis2.context.MessageContext axisMsgCtx =
                     ((Axis2MessageContext) mc).getAxis2MessageContext();
@@ -105,8 +101,9 @@ public class SmartConformanceMediator extends AbstractMediator {
         return true;
     }
 
-    public JSONObject createWellKnownURIPayload(String tenant, MessageContext mc) {
+    public JSONObject createWellKnownURIPayload(String tenant) {
 
+        log.info("Creating SMART well-known URI payload for tenant: " + tenant);
         JSONObject wellKnownURIDocument = new JSONObject();
         JSONArray authMethods = new JSONArray(Constants.SMART_AUTH_METHODS);
         JSONArray scopesSupported = new JSONArray(Constants.SMART_SCOPES_SUPPORTED);
@@ -142,6 +139,7 @@ public class SmartConformanceMediator extends AbstractMediator {
                     "certificate_value"));
             wellKnownURIDocument.put("issuer", Util.getKeyManagerProperty(tenant, 0, "issuer"));
         } catch (JSONException e) {
+            log.error("Error occurred while creating the SMART config payload: " + e.getMessage());
             throw new ConformanceMediatorException("Error occurred while creating the SMART config payload", e);
         }
         return wellKnownURIDocument;

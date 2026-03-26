@@ -30,7 +30,7 @@ public class SmartConfig {
     private List<String> authMethods = Arrays.asList("client_secret_basic", "client_secret_post", "private_key_jwt");
 
     // Grant types
-    private List<String> grantTypesSupported;
+    private List<String> grantTypesSupported = Arrays.asList("authorization_code", "refresh_token", "client_credentials");
     // Scopes supported
     private List<String> scopesSupported = Arrays.asList("openid", "launch/patient", "patient/*.cruds", "user/*.cruds");
 

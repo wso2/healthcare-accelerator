@@ -26,7 +26,6 @@ import org.apache.axiom.om.OMElement;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.wso2.carbon.CarbonConstants;
 import org.wso2.carbon.apimgt.api.model.Scope;
 import org.wso2.carbon.apimgt.api.model.policy.ApplicationPolicy;
 import org.wso2.carbon.apimgt.api.model.policy.PolicyConstants;
@@ -46,9 +45,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -635,6 +632,7 @@ public class OpenHealthcareConfig {
     }
 
     private SmartConfig buildSmartConfig() {
+        LOG.debug("Building SMART configuration");
         SmartConfig smartConfig = new SmartConfig();
         Object smartConfObj = config.get("healthcare.smartconfig");
         if (smartConfObj instanceof TomlTable) {
@@ -690,6 +688,7 @@ public class OpenHealthcareConfig {
                 smartConfig.setCapabilities(capabilitiesList);
             }
         }
+        LOG.info("SMART configuration loaded successfully");
         return smartConfig;
     }
 

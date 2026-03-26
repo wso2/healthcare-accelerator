@@ -222,7 +222,7 @@ public class ConformanceMediator extends AbstractMediator {
                 Util.createExtension("token", Util.getKeyManagerProperty(tenant, 0, "token_endpoint"),
                         EXTENSION_VALUETYPE_SECURITY));
         oauthExtension.addExtension(
-                Util.createExtension("revoke", Util.getKeyManagerProperty(tenant, 0, "revocation_endpoint"),
+                Util.createExtension("revoke", Util.getKeyManagerProperty(tenant, 0, "revoke_endpoint"),
                         EXTENSION_VALUETYPE_SECURITY));
         oauthExtension.addExtension(
                 Util.createExtension("authorize", Util.getKeyManagerProperty(tenant, 0, "authorize_endpoint"),
@@ -342,19 +342,19 @@ public class ConformanceMediator extends AbstractMediator {
     public Set<API> getAllPublishedAPIs(String tenant) throws APIManagementException {
         APIProvider apiProvider = APIManagerFactory.getInstance().getAPIProvider(APIConstants.WSO2_ANONYMOUS_USER);
 
-//        Map<String, Object> result = apiProvider.searchPaginatedAPIs("status:PUBLISHED", tenant, 0, 1000, "", "desc");
         List<API> apiList = apiProvider.getAllAPIs();
 
-//        Set<API> apis = (Set<API>) result.get("apis");
         Set<API> publishedApis = new HashSet<>();
         for (API api: apiList) {
             if (api.getStatus().equals(APIConstants.PUBLISHED)) {
+                LOG.debug("Processing published API: " + api.getId().getApiName() + " version: " + api.getId().getVersion());
                 try {
                     api.setSwaggerDefinition(getSwagger(api.getUuid(), tenant));
                     publishedApis.add(api);
                 }catch (APIManagementException e) {
                     // This can occur due to apiId and tenant mismatch.
                     LOG.error("Error occurred while retrieving OpenAPI definition for API: " + api.getId(), e);
+                    LOG.error("Failed to retrieve OpenAPI definition for API: " + api.getId().getApiName() + ", error: " + e.getMessage());
                 }
             }
         }
