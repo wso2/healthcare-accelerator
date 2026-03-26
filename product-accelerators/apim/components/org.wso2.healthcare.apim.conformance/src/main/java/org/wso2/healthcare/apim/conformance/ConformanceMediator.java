@@ -345,13 +345,13 @@ public class ConformanceMediator extends AbstractMediator {
         List<API> apiList = apiProvider.getAllAPIs();
 
         Set<API> publishedApis = new HashSet<>();
-        for (API api: apiList) {
+        for (API api : apiList) {
             if (api.getStatus().equals(APIConstants.PUBLISHED)) {
                 LOG.debug("Processing published API: " + api.getId().getApiName() + " version: " + api.getId().getVersion());
                 try {
                     api.setSwaggerDefinition(getSwagger(api.getUuid(), tenant));
                     publishedApis.add(api);
-                }catch (APIManagementException e) {
+                } catch (APIManagementException e) {
                     // This can occur due to apiId and tenant mismatch.
                     LOG.error("Error occurred while retrieving OpenAPI definition for API: " + api.getId(), e);
                     LOG.error("Failed to retrieve OpenAPI definition for API: " + api.getId().getApiName() + ", error: " + e.getMessage());
