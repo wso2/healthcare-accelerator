@@ -26,7 +26,6 @@ import org.apache.axiom.om.OMElement;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.wso2.carbon.CarbonConstants;
 import org.wso2.carbon.apimgt.api.model.Scope;
 import org.wso2.carbon.apimgt.api.model.policy.ApplicationPolicy;
 import org.wso2.carbon.apimgt.api.model.policy.PolicyConstants;
@@ -46,9 +45,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Instant;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -76,6 +73,7 @@ public class OpenHealthcareConfig {
     private OrganizationConfig organizationConfig;
     private ScopeMgtConfig scopeMgtConfig;
     private Map<String, BackendAuthConfig> backendAuthConfig;
+    private SmartConfig smartConfig;
 
     private OpenHealthcareConfig(TomlParseResult config) throws OpenHealthcareException {
         this.config = config;
@@ -162,6 +160,10 @@ public class OpenHealthcareConfig {
         return backendAuthConfig;
     }
 
+    public SmartConfig getSmartConfig() {
+        return smartConfig;
+    }
+
     private void parse(TomlParseResult config) throws OpenHealthcareException {
 
         secretResolver = SecretResolverFactory.create((OMElement) null, false);
@@ -194,6 +196,8 @@ public class OpenHealthcareConfig {
         scopeMgtConfig = buildScopeMgtConfig();
         //Parse backend auth config
         backendAuthConfig = buildBackendAuthConfig();
+        //Parse SMART config
+        smartConfig = buildSmartConfig();
     }
 
     private AccountConfig buildAccountConfig() throws OpenHealthcareException {
@@ -625,6 +629,67 @@ public class OpenHealthcareConfig {
             }
         }
         return backendAuthConfigs;
+    }
+
+    private SmartConfig buildSmartConfig() {
+        LOG.debug("Building SMART configuration");
+        SmartConfig smartConfig = new SmartConfig();
+        Object smartConfObj = config.get("healthcare.smartconfig");
+        if (smartConfObj instanceof TomlTable) {
+            TomlTable smartConfigTable = (TomlTable) smartConfObj;
+
+            // Auth methods
+            TomlArray authMethodsArr = smartConfigTable.getArray("auth_methods");
+            if (authMethodsArr != null) {
+                List<String> authMethodsList = new ArrayList<>();
+                for (int i = 0; i < authMethodsArr.size(); i++) {
+                    authMethodsList.add(authMethodsArr.getString(i));
+                }
+                smartConfig.setAuthMethods(authMethodsList);
+            }
+
+            // Grant types supported
+            TomlArray grantTypesSupportedArr = smartConfigTable.getArray("grant_types_supported");
+            if (grantTypesSupportedArr != null) {
+                List<String> grantTypesSupportedList = new ArrayList<>();
+                for (int i = 0; i < grantTypesSupportedArr.size(); i++) {
+                    grantTypesSupportedList.add(grantTypesSupportedArr.getString(i));
+                }
+                smartConfig.setGrantTypesSupported(grantTypesSupportedList);
+            }
+
+            // Scopes supported
+            TomlArray scopesSupportedArr = smartConfigTable.getArray("scopes_supported");
+            if (scopesSupportedArr != null) {
+                List<String> scopesSupportedList = new ArrayList<>();
+                for (int i = 0; i < scopesSupportedArr.size(); i++) {
+                    scopesSupportedList.add(scopesSupportedArr.getString(i));
+                }
+                smartConfig.setScopesSupported(scopesSupportedList);
+            }
+
+            // Response types
+            TomlArray responseTypesArr = smartConfigTable.getArray("response_types");
+            if (responseTypesArr != null) {
+                List<String> responseTypesList = new ArrayList<>();
+                for (int i = 0; i < responseTypesArr.size(); i++) {
+                    responseTypesList.add(responseTypesArr.getString(i));
+                }
+                smartConfig.setResponseTypes(responseTypesList);
+            }
+
+            // Capabilities
+            TomlArray capabilitiesArr = smartConfigTable.getArray("capabilities");
+            if (capabilitiesArr != null) {
+                List<String> capabilitiesList = new ArrayList<>();
+                for (int i = 0; i < capabilitiesArr.size(); i++) {
+                    capabilitiesList.add(capabilitiesArr.getString(i));
+                }
+                smartConfig.setCapabilities(capabilitiesList);
+            }
+        }
+        LOG.info("SMART configuration loaded successfully");
+        return smartConfig;
     }
 
     private char[] resolveSecret(String secret) {
