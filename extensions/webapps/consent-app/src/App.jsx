@@ -12,7 +12,6 @@ function readStoredPatient() {
 }
 
 function isPractitioner(scimUser) {
-  console.log("SCIM user data:", scimUser);
   const fhirUser = scimUser?.["urn:scim:schemas:extension:custom:User"]?.fhirUser ?? "";
   return typeof fhirUser === "string" && fhirUser.includes("Practitioner");
 }
