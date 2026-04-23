@@ -1,0 +1,13 @@
+hostname = "localhost"
+port = 9091
+
+consentContextApiBaseUrl = "https://localhost:9453"
+consentContextApiPath = "/api/identity/auth/v1.1/data/OauthConsentKey"
+consentContextApiUsername = "admin"
+consentContextApiPassword = "admin"
+consentContextApiTrustStorePath = "/Users/isurus/wso2/healthcare/other/rnd/apim-is/smart/wso2is-7.2.0/repository/resources/security/client-truststore.p12"
+consentContextApiTrustStorePassword = "wso2carbon"
+
+# Target endpoint to receive final authorize-call parameters.
+# Redirects back to WSO2 OAuth2 authorize endpoint after approval.
+consentAuthorizeRedirectUrl = "https://localhost:9453/oauth2/authorize"
