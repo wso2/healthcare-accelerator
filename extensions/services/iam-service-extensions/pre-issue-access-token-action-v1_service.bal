@@ -24,7 +24,7 @@ listener http:Listener httpListener = new (port, config = {host: hostname});
 final string:RegExp scopeRegex = re `^(patient|user|system)/(\*|[A-Za-z]*)\.(cruds|c?r?u?d?s?)$`;
 
 # Pre issue access token action implementation.
-# 
+#
 # This service implements the pre-issue access token action point for WSO2 Identity Server. 
 # It listens for incoming events before an access token is issued and allows for dynamic modification of the access 
 # token request, such as scope expansion and adding custom claims based on the request context.
@@ -37,19 +37,19 @@ service /pre\-issue\-access\-token on httpListener {
     # http:BadRequest (Bad Request)
     # http:InternalServerError (Server Error)
     isolated resource function post .(@http:Payload json payload) returns InlineResponse200Ok|ErrorResponseBadRequest
-        |ErrorResponseInternalServerError|error  {
-        
+        |ErrorResponseInternalServerError|error {
+
         RequestBody reqBody = check payload.cloneWithType();
         string flowId = reqBody.flowId ?: "";
         log:printDebug(string `[${flowId}]: Processing pre-issue access token request for with request id : 
             ${reqBody.requestId ?: ""}, grant type: ${reqBody.event.request.grantType}`);
-        
+
         string[]? scopes = reqBody.event.accessToken.scopes;
         string[]? tokenReqScopes = reqBody.event.request.scopes;
         string grantType = reqBody.event.request.grantType;
         // todo: need to remove this method and extract sessionDataKeyConsent from the extension when the feature is live
         string? sessionDataKeyConsent = extractSessionDataKeyConsent(reqBody.event.request.additionalParams);
-        
+
         string[] modifiedScopes = [];
         string? patientIdFromScope = ();
         string? launchId = ();
@@ -92,7 +92,7 @@ service /pre\-issue\-access\-token on httpListener {
                 return badRequestError;
             }
         }
-        
+
         // scope expansion for public/client-visible scopes from access token request
         if scopes is string[] && scopes.length() > 0 {
             foreach string scope in scopes {
@@ -129,7 +129,7 @@ service /pre\-issue\-access\-token on httpListener {
                             modifiedScopes.push(scope);
                         }
                     }
-                } else if !scope.matches(re `^(patient|user|system)/.*`) { 
+                } else if !scope.matches(re `^(patient|user|system)/.*`) {
                     // scope is not in patient/user/system format, add as is
                     modifiedScopes.push(scope);
                 } else {
@@ -245,16 +245,17 @@ service /pre\-issue\-access\-token on httpListener {
             });
         }
 
-
-        InlineResponse200Ok response = { body: {
-            actionStatus: "SUCCESS",
-            operations: responseOperations}
-            };
+        InlineResponse200Ok response = {
+            body: {
+                actionStatus: "SUCCESS",
+                operations: responseOperations
+            }
+        };
 
         return response;
     }
     // todo user role and add patient id
-    
+
 }
 
 isolated function extractSessionDataKeyConsent(RequestParams[]? additionalParams) returns string? {

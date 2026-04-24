@@ -25,6 +25,7 @@ import ballerina/log;
 public isolated client class Client {
     final http:Client clientEp;
     final readonly & ApiKeysConfig? apiKeyConfig;
+
     # Gets invoked to initialize the `connector`.
     #
     # + config - The configurations to be used when initializing the `connector` 
@@ -40,6 +41,7 @@ public isolated client class Client {
             self.apiKeyConfig = ();
         }
         self.clientEp = check new (serviceUrl, httpClientConfig);
+        log:printInfo("WSO2 Identity Server extension client initialized successfully");
     }
 
     # handle pre-issue access token events

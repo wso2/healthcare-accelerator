@@ -66,6 +66,7 @@ service / on consentListener {
             log:printError("Failed to load consent context", 'error = consentContext);
             return buildTextResponse(502, "Failed to load consent context data");
         }
+        log:printInfo("Processing consent request", sessionDataKeyConsent = sessionDataKeyConsent, spId = spId);
 
         string[] scopes = extractScopesFromContext(consentContext);
         string user = extractUserFromContext(consentContext);
@@ -244,6 +245,10 @@ service / on consentListener {
         if consent != "deny" && user == "" {
             return buildTextResponse(400, "Missing authenticated user in consent context.");
         }
+        log:printInfo(
+            "Consent processing completed successfully",
+            sessionDataKeyConsent = sessionDataKeyConsent,
+            consent = consent);
 
         string|error locationUri = postAuthorizeRequest(sessionDataKeyConsent, consent, hasApprovedAlways,
             user, spId, selectedScopes, cookieHeader);
