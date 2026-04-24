@@ -309,7 +309,7 @@ function postAuthorizeRequest(string sessionDataKeyConsent, string consent, stri
     string body = string `sessionDataKeyConsent=${getEncodedUri(sessionDataKeyConsent)}` +
         string `&consent=${getEncodedUri(consent)}` +
         string `&hasApprovedAlways=${getEncodedUri(hasApprovedAlways)}` +
-        string `&consent_custom_attribute="customAttr"` +
+        string `&consent_custom_attribute=${getEncodedUri("customAttr")}` +
         string `&user=${getEncodedUri(user)}`;
 
     if selectedScopes.length() > 0 {

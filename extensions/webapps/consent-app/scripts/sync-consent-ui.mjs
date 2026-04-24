@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename);
 
 const appRoot = path.resolve(__dirname, "..");
 const distDir = path.join(appRoot, "dist");
-const consentUiDir = path.resolve(appRoot, "../resources/consent-ui");
+const consentUiDir = path.resolve(appRoot, "../../services/consent-app-bff/resources/consent-ui");
 
 async function pathExists(targetPath) {
   try {

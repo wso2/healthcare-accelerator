@@ -18,11 +18,13 @@ export default function ConsentPage({
   spId,
   user,
   scopes = [],
+  additionalContext = [],
   onApprove,
   onDeny,
 }) {
+  const additionalContextValues = Array.isArray(additionalContext) ? additionalContext : [];
   // Validate SMART scopes: if it starts with patient/user/system/ it must match the full regex
-  const scopeRegex = /^(patient|user|system)\/(\*|[A-Za-z]*)\.(cruds|c?r?u?d?s?)$/;
+  const scopeRegex = /^(patient|user|system)\/(\*|[A-Za-z]+)\.(cruds|(?=[cruds]+$)c?r?u?d?s?)$/;
   const isValidScope = (s) => {
     if (/^(patient|user|system)\//.test(s)) return scopeRegex.test(s);
     return true;
@@ -50,7 +52,13 @@ export default function ConsentPage({
 
   const handleApprove = () => {
     if (onApprove) {
-      onApprove({ sessionDataKeyConsent, spId, user, scopes: [...selectedScopes, ...hiddenScopes] });
+      onApprove({
+        sessionDataKeyConsent,
+        spId,
+        user,
+        scopes: [...selectedScopes, ...hiddenScopes],
+        additionalContext: additionalContextValues,
+      });
       return;
     }
     // Real form submission

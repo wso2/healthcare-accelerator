@@ -60,6 +60,7 @@
   max-width: 560px;
   padding: 36px 40px 32px;
   border: 1px solid var(--border);
+  box-sizing: border-box;
 }
 
 .card-title {
