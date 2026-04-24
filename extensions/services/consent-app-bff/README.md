@@ -32,7 +32,7 @@ Receives form submission from the consent UI.
 | `user` | Authenticated username |
 | `spId` | Service provider ID |
 | `scope` | Repeated field — one per approved scope |
-| `additionalContext` | JSON-stringified array of context strings (e.g. selected patient) |
+| `additionalContext` | Repeated field — one JSON string per context item (e.g. selected patient) |
 
 On approval, persists approved scopes to the H2 database and redirects to `consentAuthorizeRedirectUrl`.  
 If `consentAuthorizeRedirectUrl` is not set, returns the parsed form data as JSON (useful for testing).
@@ -90,7 +90,7 @@ For local WSO2 IS, point `consentContextApiTrustStorePath` to the IS `client-tru
 ## Build the UI
 
 ```bash
-cd ../consent-app
+cd ../../webapps/consent-app
 npm install
 npm run build
 ```
@@ -100,9 +100,9 @@ npm run build
 
 Build the consent web application.
 ```bash
-cd consent-app
+cd ../../webapps/consent-app
 npm run build
-cd ..
+cd ../../services/consent-app-bff
 ```
 
 ```bash
