@@ -58,7 +58,7 @@ public type RequestParams record {
 };
 
 # Defines the replace operation.
-# 
+#
 # + op - The type of operation, which is "replace" in this case.
 # + paths - The paths to be replaced. Should be one from the allowed paths of replace operation in the allowedOperations.
 public type replaceOperation record {
@@ -72,7 +72,7 @@ public type CustomValue record {
 };
 
 # Defines the replace operation.
-# 
+#
 # + op - The type of operation, which is "replace" in this case.
 # + path - The paths to be replaced. Should be one from the allowed paths of replace operation in the allowedOperations.
 # + value - Defines the value for the replace operation.
@@ -106,32 +106,32 @@ public type AccessToken record {
     # Defines the type of token.
     "JWT" tokenType;
     # An array that contains both standard access token claims and any OpenID Connect (OIDC) claims configured to be included in the access token.
-    # 
+    #
     # Standard claims:
-    # 
+    #
     # - **sub**: The subject identifier for the token, typically representing the user. In M2M apps that use client credentials this represents the application.
     # - **iss**: The issuer of the token, which is the tenant of WSO2 Identity Server that acts as the authorization server.
     # - **aud**: The audience for the token.
     # - **client_id**: The identifier of the client (application) that requested the token.
     # - **aut**: The authorized user type associated with the token.
-    # 
-    #   Can have the following values:
-    #   - **APPLICATION**: Indicates that the token is authorized for an application.
-    #   - **APPLICATION_USER**: Indicates that the token is authorized for a user.
-    # 
+    #
+    # Can have the following values:
+    # - **APPLICATION**: Indicates that the token is authorized for an application.
+    # - **APPLICATION_USER**: Indicates that the token is authorized for a user.
+    #
     # - **expires_in**: The duration (in seconds) for which the token is valid.
     # - **binding_type**: Indicates the type of binding associated with the token, if applicable.
     # - **binding_ref**: A reference identifier for the binding, if applicable.
     # - **subject_type**: Specifies the type of subject (e.g., public or pairwise) as per OIDC specifications.
-    # 
-    #   OIDC claims are any additional claims configured in the application to be included in the access token. These claims are based on the OIDC standard and may include user profile information such as email, given-name, or custom claims specific to the application. 
+    #
+    # OIDC claims are any additional claims configured in the application to be included in the access token. These claims are based on the OIDC standard and may include user profile information such as email, given-name, or custom claims specific to the application. 
     AccessTokenClaims[] claims;
     # Lists the permissions or access levels granted by the access token.
     string[] scopes?;
 };
 
 # Defines the add operation.
-# 
+#
 # + op - The type of operation, which is "add" in this case.
 # + path - The paths to be added. Should be one from the allowed paths of add operation in the allowedOperations.
 # + value - Defines the value for the add operation.
@@ -223,7 +223,7 @@ public type RequestBody record {
 };
 
 # Defines the success response.
-# 
+#
 # + actionStatus - Indicates the outcome of the request. For a successful operation, this should be set to SUCCESS.
 # + operations - Defines the set of operations that were performed by your external service on the access
 public type SuccessResponse record {
@@ -293,7 +293,7 @@ public type removeOperation record {
 };
 
 # Defines the remove operation.
-# 
+#
 # + op - The type of operation, which is "remove" in this case.
 public type removeOperationResponse record {
     "remove" op;
@@ -331,7 +331,7 @@ public type ApiKeysConfig record {|
 # + context_patient - patient identifier associated with the EHR launch context  
 # + context_encounter - encounter identifier associated with the EHR launch context  
 # + launch - launch identifier associated with the EHR launch context
-public type EhrLaunchContext record {| 
+public type EhrLaunchContext record {|
     string context_patient?;
     string context_encounter?;
     string launch;
