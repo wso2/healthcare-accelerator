@@ -52,50 +52,6 @@ listener http:Listener consentListener = new (port, config = {host: hostname});
 
 service / on consentListener {
 
-    resource function get consent(http:Request req) returns http:Response {
-        map<string[]> queryParams = req.getQueryParams();
-        string? sessionDataKeyConsent = getFirstValue(queryParams, "sessionDataKeyConsent");
-        string spId = getFirstValue(queryParams, "spId") ?: "";
-
-        if !(sessionDataKeyConsent is string) || sessionDataKeyConsent == "" {
-            return buildTextResponse(400, "Missing required query parameter: sessionDataKeyConsent");
-        }
-
-        json|error consentContext = fetchConsentContext(sessionDataKeyConsent);
-        if consentContext is error {
-            log:printError("Failed to load consent context", 'error = consentContext);
-            return buildTextResponse(502, "Failed to load consent context data");
-        }
-        log:printInfo("Processing consent request", sessionDataKeyConsent = sessionDataKeyConsent, spId = spId);
-
-        string[] scopes = extractScopesFromContext(consentContext);
-        string user = extractUserFromContext(consentContext);
-
-        string|error html = io:fileReadString(uiDistPath + "/index.html");
-        if html is error {
-            log:printError("Failed to read React app index.html", 'error = html);
-            return buildTextResponse(500, "UI build not found. Run 'npm run build' and copy dist/ to " + uiDistPath);
-        }
-
-        json consentProps = {
-            sessionDataKeyConsent,
-            spId,
-            user,
-            scopes,
-            contextJson: consentContext.toJsonString()
-        };
-        string consentPropsJson = escapeForScriptTag(consentProps.toJsonString());
-        string injectedScript = string `<script id="consent-props" type="application/json">${consentPropsJson}</script>` +
-            string `<script>window.__CONSENT_PROPS__=JSON.parse(document.getElementById("consent-props")?.textContent||"{}");</script>`;
-
-        string finalHtml = re`</body>`.replaceAll(html, injectedScript + "</body>");
-
-        http:Response response = new;
-        response.setHeader("Content-Type", "text/html; charset=utf-8");
-        response.setPayload(finalHtml);
-        return response;
-    }
-
     resource function get approved\-scopes(http:Request req) returns http:Response {
         map<string[]> queryParams = req.getQueryParams();
         string sessionDataKeyConsent = getFirstValue(queryParams, "sessionDataKeyConsent") ?: "";

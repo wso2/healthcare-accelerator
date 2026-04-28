@@ -1,24 +1,24 @@
 :root {
-  --primary: #3b3b8f;
-  --primary-hover: #2d2d7a;
-  --primary-light: #eeeeff;
+  --primary: #ff5100;
+  --primary-hover: #e64900;
+  --primary-light: rgba(255, 81, 0, 0.08);
   --surface: #ffffff;
-  --background: #f5f5f5;
-  --border: #e0e0e0;
-  --text-primary: #1a1a2e;
+  --background: #f7f8fb;
+  --border: #d7d9e3;
+  --text-primary: #40404b;
   --text-secondary: #5a5a72;
-  --text-muted: #9090a8;
+  --text-muted: #73738c;
   --danger: #d32f2f;
   --danger-light: #fff5f5;
   --radius: 8px;
   --radius-lg: 12px;
-  --shadow: 0 2px 16px rgba(59, 59, 143, 0.1);
+  --shadow: 0px 2px 1px -1px rgba(21, 21, 21, 0.08), 0px 1px 1px 0px rgba(21, 21, 21, 0.06), 0px 1px 3px 0px rgba(21, 21, 21, 0.04);
 }
 
 .consent-page {
   min-height: 100vh;
   background: var(--background);
-  font-family: 'Nunito Sans', 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-family: 'Gilmer', 'Segoe UI', Helvetica, Arial, sans-serif;
   display: flex;
   flex-direction: column;
 }
@@ -195,28 +195,28 @@
 
 .approve-btn {
   flex: 1;
-  background: var(--primary);
+  background: linear-gradient(270deg, #ff6258, #fe8655);
   color: #fff;
   border: none;
-  border-radius: var(--radius);
+  border-radius: 22px;
   padding: 12px 20px;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 400;
   cursor: pointer;
   font-family: inherit;
   letter-spacing: 0.01em;
-  transition: background 0.15s;
+  transition: opacity 0.15s;
 }
 
 .approve-btn:hover {
-  background: var(--primary-hover);
+  opacity: 0.9;
 }
 
 .deny-btn {
   background: transparent;
   color: var(--danger);
   border: 1px solid var(--danger);
-  border-radius: var(--radius);
+  border-radius: 22px;
   padding: 12px 20px;
   font-size: 15px;
   font-weight: 600;

@@ -48,7 +48,7 @@ export default function App() {
 
   if (!consentProps) {
     return (
-      <div style={{ fontFamily: 'monospace', padding: '2rem', color: '#d32f2f' }}>
+      <div style={{ fontFamily: 'monospace', padding: '2rem', color: 'var(--oxygen-palette-error-main, #d32f2f)' }}>
         <strong>Missing consent props.</strong> This page must be served by the Ballerina consent service.
       </div>
     );
