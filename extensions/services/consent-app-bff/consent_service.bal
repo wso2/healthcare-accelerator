@@ -75,6 +75,42 @@ service / on consentListener {
         return response;
     }
 
+    resource function get api/consent\-context(http:Request req) returns http:Response {
+        map<string[]> queryParams = req.getQueryParams();
+        string? sessionDataKeyConsent = getFirstValue(queryParams, "sessionDataKeyConsent");
+        string spId = getFirstValue(queryParams, "spId") ?: "";
+
+        if !(sessionDataKeyConsent is string) || sessionDataKeyConsent == "" {
+            return buildTextResponse(400, "Missing required query parameter: sessionDataKeyConsent");
+        }
+
+        json|error consentContext = fetchConsentContext(sessionDataKeyConsent);
+        if consentContext is error {
+            log:printError("Failed to load consent context", 'error = consentContext,
+                sessionDataKeyConsent = sessionDataKeyConsent);
+            return buildTextResponse(502, "Failed to load consent context data");
+        }
+
+        string[] scopes = extractScopesFromContext(consentContext);
+        string user = extractUserFromContext(consentContext);
+
+        json responsePayload = {
+            sessionDataKeyConsent: sessionDataKeyConsent,
+            spId: spId,
+            user: user,
+            scopes: scopes,
+            context: consentContext
+        };
+
+        log:printInfo("Serving consent context", sessionDataKeyConsent = sessionDataKeyConsent,
+            spId = spId, user = user, scopes = scopes);
+
+        http:Response response = new;
+        response.setHeader("Content-Type", "application/json");
+        response.setPayload(responsePayload);
+        return response;
+    }
+
     resource function get api/patients(http:Request req) returns http:Response {
         json|error patients = fetchScimPatients();
         if patients is error {

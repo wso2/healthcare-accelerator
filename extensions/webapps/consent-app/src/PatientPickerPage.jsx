@@ -217,7 +217,6 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
               fontWeight: 400,
               letterSpacing: "0.04em",
               color: "text.primary",
-              flexGrow: 1,
             }}
           >
             OPEN HEALTHCARE
@@ -225,7 +224,7 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
 
           {/* Logged-in user info */}
           {user && (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: "auto" }}>
               <Avatar
                 sx={{
                   width: 32,
