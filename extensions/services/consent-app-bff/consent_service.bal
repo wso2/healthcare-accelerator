@@ -34,9 +34,6 @@ configurable string consentStoreDbUrl = "jdbc:h2:./resources/consent_scopes";
 configurable string consentStoreDbUser = "sa";
 configurable string consentStoreDbPassword = "";
 
-// Path to the Vite build output (dist/) folder
-configurable string uiDistPath = "resources/consent-ui";
-
 final jdbc:Client consentStoreDbClient = checkpanic new (
     url = consentStoreDbUrl,
     user = consentStoreDbUser,
@@ -537,22 +534,6 @@ function getMimeType(string filename) returns string {
     if filename.endsWith(".png") { return "image/png"; }
     if filename.endsWith(".ico") { return "image/x-icon"; }
     return "application/octet-stream";
-}
-
-function escapeJson(string value) returns string {
-    string escaped = re `\\`.replaceAll(value, "\\\\");
-    escaped = re `"`.replaceAll(escaped, "\\\"");
-    escaped = re `\n`.replaceAll(escaped, "\\n");
-    escaped = re `\r`.replaceAll(escaped, "\\r");
-    escaped = re `\t`.replaceAll(escaped, "\\t");
-    return escaped;
-}
-
-function escapeForScriptTag(string value) returns string {
-    string escaped = re `</script`.replaceAll(value, "<\\/script");
-    escaped = re `<`.replaceAll(escaped, "\\u003c");
-    escaped = re `&`.replaceAll(escaped, "\\u0026");
-    return escaped;
 }
 
 function getEncodedUri(anydata value) returns string {

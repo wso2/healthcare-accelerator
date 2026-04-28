@@ -25,7 +25,7 @@ import ballerina/url;
 # + value - Value to be encoded
 # + return - Encoded string
 isolated function getEncodedUri(anydata value) returns string {
-    log:debug("Encoding URI for value type: " + typeof value);
+    log:printDebug("Encoding URI for value type: " + (typeof value).toString());
     string|error encoded = url:encode(value.toString(), "UTF8");
     if encoded is string {
         return encoded;
