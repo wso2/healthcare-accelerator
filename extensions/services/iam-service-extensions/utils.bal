@@ -25,7 +25,7 @@ import ballerina/url;
 # + value - Value to be encoded
 # + return - Encoded string
 isolated function getEncodedUri(anydata value) returns string {
-    log:debug("Encoding URI for value type: " + typeof value);
+    log:printDebug("Encoding URI for value type: " + (typeof value).toString());
     string|error encoded = url:encode(value.toString(), "UTF8");
     if encoded is string {
         return encoded;
@@ -33,4 +33,20 @@ isolated function getEncodedUri(anydata value) returns string {
         log:printWarn("Failed to encode URI, returning original value. Error: " + encoded.message());
         return value.toString();
     }
+}
+
+# Get additional parameter value from the list of parameters.
+#
+# + params - List of request parameters
+# + name - Parameter name to search for
+# + return - Return value if found, otherwise null
+isolated function getAdditionalParam(RequestParams[]? params, string name) returns string? {
+    if params is RequestParams[] {
+        foreach RequestParams param in params {
+            if param.name == name && param.value.length() > 0 {
+                return param.value[0];
+            }
+        }
+    }
+    return ();
 }

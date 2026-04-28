@@ -328,11 +328,15 @@ public type ApiKeysConfig record {|
 
 # Defines response structure for the ehr launch context resolve endpoint
 #
-# + context_patient - patient identifier associated with the EHR launch context  
-# + context_encounter - encounter identifier associated with the EHR launch context  
-# + launch - launch identifier associated with the EHR launch context
-public type EhrLaunchContext record {|
-    string context_patient?;
-    string context_encounter?;
-    string launch;
+# + patientId - patient id.
+# + encounterId - encounter id.
+# + launchId - launch id.
+# + aud - audience for the EHR launch context, which is the identifier of the client application the launch is intended for.
+# + expiry - expiration time of the EHR launch context.
+public type EhrLaunchContext record {| 
+    string patientId?;
+    string encounterId?;
+    string launchId;
+    string aud;
+    string expiry;
 |};

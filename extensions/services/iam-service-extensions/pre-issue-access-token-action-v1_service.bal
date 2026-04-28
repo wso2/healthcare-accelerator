@@ -47,8 +47,7 @@ service /pre\-issue\-access\-token on httpListener {
         string[]? scopes = reqBody.event.accessToken.scopes;
         string[]? tokenReqScopes = reqBody.event.request.scopes;
         string grantType = reqBody.event.request.grantType;
-        // todo: need to remove this method and extract sessionDataKeyConsent from the extension when the feature is live
-        string? sessionDataKeyConsent = extractSessionDataKeyConsent(reqBody.event.request.additionalParams);
+        string? sessionDataKeyConsent = extractSessionDataKeyConsent(reqBody.event);
 
         string[] modifiedScopes = [];
         string? patientIdFromScope = ();
@@ -56,7 +55,7 @@ service /pre\-issue\-access\-token on httpListener {
         string? resolvedPatientId = ();
         string? resolvedEncounterId = ();
         string[]? approvedScopes = ();
-        boolean consentLookupFailed = false;
+        string? redirectUri = getAdditionalParam(reqBody.event.request.additionalParams, "redirect_uri");
 
         // get approved scopes from consent service if sessionDataKeyConsent is present in the request
         if sessionDataKeyConsent is string && sessionDataKeyConsent != "" {
@@ -65,12 +64,7 @@ service /pre\-issue\-access\-token on httpListener {
                 approvedScopes = approvedScopesResult;
                 log:printDebug(string `[${flowId}]: Loaded approved scopes from consent service for consent key`);
             } else {
-                consentLookupFailed = true;
-                approvedScopes = [];
                 log:printError(string `[${flowId}]: Failed to load approved scopes from consent service: ${approvedScopesResult.message()}`);
-            }
-
-            if consentLookupFailed {
                 ErrorResponseInternalServerError serverError = {
                     body: {
                         actionStatus: "ERROR",
@@ -190,17 +184,40 @@ service /pre\-issue\-access\-token on httpListener {
         }
 
         // resolve launch and encounter if applicable
-
         if launchId is string && launchId != "" {
             if ehrContextResolveUrl != "" {
-                EhrLaunchContext|error launchContext = resolveLaunchContext(launchId);
+                json|error launchContextRslt = resolveLaunchContext(launchId);
+                if launchContextRslt is error {
+                    log:printError(string `[${flowId}]: Failed to resolve launch context for launch id '${launchId}': ${launchContextRslt.message()}`);
+                    ErrorResponseInternalServerError serverError = {
+                        body: {
+                            actionStatus: "ERROR",
+                            errorMessage: "Launch context resolution failed",
+                            errorDescription: "Error occurred while resolving EHR launch context. Token issuance denied."
+                        }
+                    };
+                    return serverError;
+                }
+                EhrLaunchContext|error launchContext = launchContextRslt.cloneWithType();
                 if launchContext is EhrLaunchContext {
-                    if !(patientIdFromScope is string && patientIdFromScope != "") && launchContext.context_patient is string {
-                        string patientId = <string>launchContext.context_patient;
+                    // if redirect_uri is present in the token request, validate it against the aud claim in launch context
+                    if redirectUri is string && redirectUri != "" && launchContext.aud != redirectUri {
+                        log:printWarn(string `[${flowId}]: Launch context aud '${launchContext.aud}' does not match redirect_uri '${redirectUri}'`);
+                        ErrorResponseBadRequest audMismatchError = {
+                            body: {
+                                actionStatus: "ERROR",
+                                errorMessage: "Launch context validation failed",
+                                errorDescription: "Launch context was not issued for this application. Token issuance denied."
+                            }
+                        };
+                        return audMismatchError;
+                    }
+                    if !(patientIdFromScope is string && patientIdFromScope != "") && launchContext.patientId is string {
+                        string patientId = <string>launchContext.patientId;
                         resolvedPatientId = patientId;
                     }
-                    if launchContext.context_encounter is string {
-                        string encounterId = <string>launchContext.context_encounter;
+                    if launchContext.encounterId is string {
+                        string encounterId = <string>launchContext.encounterId;
                         resolvedEncounterId = encounterId;
                     }
                 } else {
@@ -254,19 +271,13 @@ service /pre\-issue\-access\-token on httpListener {
 
         return response;
     }
-    // todo user role and add patient id
-
 }
 
-isolated function extractSessionDataKeyConsent(RequestParams[]? additionalParams) returns string? {
-    if additionalParams is RequestParams[] {
-        foreach RequestParams param in additionalParams {
-            if param.name == "sessionDataKeyConsent" || param.name == "SessionDataKeyConsent" ||
-                    param.name == "sessionDataKey" {
-                if param.value.length() > 0 && param.value[0] != "" {
-                    return param.value[0];
-                }
-            }
+isolated function extractSessionDataKeyConsent(Event event) returns string? {
+    if event.hasKey("session") {
+        json session = event["session"].toJson();
+        if session is map<json> && session.hasKey("sessionDataKeyConsent") {
+            return session["sessionDataKeyConsent"].toString();
         }
     }
     return ();
@@ -327,14 +338,13 @@ isolated function isPermittedScope(string scope, string grantType) returns boole
     return true;
 }
 
-// todo - need to check and refactor this with EHR launch.
-isolated function resolveLaunchContext(string launchId) returns EhrLaunchContext|error {
+isolated function resolveLaunchContext(string launchId) returns json|error {
     http:Client ehrContextClient = check new (ehrContextResolveUrl);
-    string resourcePath = string `?launch=${getEncodedUri(launchId)}`;
+    string resourcePath = string `/${getEncodedUri(launchId)}`;
     http:Response ehrContextResponse = check ehrContextClient->get(resourcePath);
     json responseBody = check ehrContextResponse.getJsonPayload();
     log:printDebug(string `Launch context response from EHR context resolve endpoint: ${responseBody.toJsonString()}`);
-    return check responseBody.cloneWithType();
+    return responseBody;
 }
 
 isolated function getLaunchIdFromCustomScope(string scope) returns string? {
