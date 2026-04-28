@@ -63,10 +63,10 @@ function ErrorBanner({ message }) {
         borderRadius: 2,
       }}
     >
-      <Typography variant="body2" sx={{ color: "#d32f2f", fontWeight: 600, mb: 0.5 }}>
+      <Typography variant="body2" sx={{ color: "error.main", fontWeight: 600, mb: 0.5 }}>
         Something went wrong
       </Typography>
-      <Typography variant="body2" sx={{ color: "#d32f2f" }}>
+      <Typography variant="body2" sx={{ color: "error.main" }}>
         {message}
       </Typography>
     </Box>
@@ -194,8 +194,8 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        backgroundColor: "#f5f5f5",
-        fontFamily: "'Nunito Sans', 'Segoe UI', Helvetica, Arial, sans-serif",
+        backgroundColor: "background.default",
+        fontFamily: "'Gilmer', 'Segoe UI', Helvetica, Arial, sans-serif",
       }}
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
@@ -203,8 +203,9 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
         position="static"
         elevation={0}
         sx={{
-          backgroundColor: "#ffffff",
-          borderBottom: "1px solid #e0e0e0",
+          backgroundColor: "background.paper",
+          borderBottom: "1px solid",
+          borderColor: "divider",
           color: "inherit",
         }}
       >
@@ -215,7 +216,7 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
               fontSize: "15px",
               fontWeight: 400,
               letterSpacing: "0.04em",
-              color: "#1a1a2e",
+              color: "text.primary",
               flexGrow: 1,
             }}
           >
@@ -230,18 +231,18 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                   width: 32,
                   height: 32,
                   fontSize: "13px",
-                  bgcolor: "#3B3B8F",
+                  bgcolor: "primary.main",
                   fontWeight: 700,
                 }}
               >
                 {getInitials(user.displayName || user.username)}
               </Avatar>
               <Box sx={{ display: { xs: "none", sm: "block" } }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: "#1a1a2e", lineHeight: 1.2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary", lineHeight: 1.2 }}>
                   {user.displayName || user.username}
                 </Typography>
                 {user.email && (
-                  <Typography variant="caption" sx={{ color: "#5a5a72" }}>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
                     {user.email}
                   </Typography>
                 )}
@@ -268,7 +269,8 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
             width: "100%",
             maxWidth: 560,
             borderRadius: "12px",
-            border: "1px solid #e0e0e0",
+            border: "1px solid",
+            borderColor: "divider",
           }}
         >
           <CardContent sx={{ p: { xs: 3, sm: "36px 40px 32px" } }}>
@@ -277,21 +279,21 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
               variant="h5"
               sx={{
                 fontWeight: 700,
-                color: "#1a1a2e",
+                color: "text.primary",
                 letterSpacing: "-0.02em",
                 mb: 0.5,
               }}
             >
               Select Patient
             </Typography>
-            <Typography variant="body2" sx={{ color: "#5a5a72", mb: 3 }}>
+            <Typography variant="body2" sx={{ color: "text.secondary", mb: 3 }}>
               Choose the patient record you want to associate with this session.
             </Typography>
 
             {/* Loading state */}
             {loading && (
               <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-                <CircularProgress size={36} sx={{ color: "#3B3B8F" }} />
+                <CircularProgress size={36} sx={{ color: "primary.main" }} />
               </Box>
             )}
 
@@ -307,8 +309,8 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                     label={`Practitioner: ${user.displayName || user.username}`}
                     size="small"
                     sx={{
-                      bgcolor: "#eeeeff",
-                      color: "#3B3B8F",
+                      bgcolor: "rgba(255, 81, 0, 0.08)",
+                      color: "primary.main",
                       fontWeight: 600,
                       fontSize: "11px",
                       letterSpacing: "0.03em",
@@ -339,7 +341,7 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                     fontWeight: 700,
                     textTransform: "uppercase",
                     letterSpacing: "0.08em",
-                    color: "#9090a8",
+                    color: "text.secondary",
                     display: "block",
                     mb: 1,
                   }}
@@ -366,7 +368,7 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                               width: 28,
                               height: 28,
                               fontSize: "11px",
-                              bgcolor: "#3B3B8F",
+                              bgcolor: "primary.main",
                               fontWeight: 700,
                             }}
                           >
@@ -376,7 +378,7 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                             <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }}>
                               {p.name}
                             </Typography>
-                            <Typography variant="caption" sx={{ color: "#5a5a72" }}>
+                            <Typography variant="caption" sx={{ color: "text.secondary" }}>
                               {p.mrn}
                             </Typography>
                           </Box>
@@ -390,9 +392,10 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                 {selectedPatient && (
                   <Box
                     sx={{
-                      border: "1px solid #e0e0e0",
+                      border: "1px solid",
+                      borderColor: "divider",
                       borderRadius: "8px",
-                      bgcolor: "#f8f8fc",
+                      bgcolor: "background.default",
                       p: 2,
                       mb: 3,
                     }}
@@ -403,17 +406,17 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                           width: 48,
                           height: 48,
                           fontSize: "18px",
-                          bgcolor: "#3B3B8F",
+                          bgcolor: "primary.main",
                           fontWeight: 700,
                         }}
                       >
                         {getInitials(selectedPatient.name)}
                       </Avatar>
                       <Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#1a1a2e" }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "text.primary" }}>
                           {selectedPatient.name}
                         </Typography>
-                        <Typography variant="caption" sx={{ color: "#5a5a72" }}>
+                        <Typography variant="caption" sx={{ color: "text.secondary" }}>
                           {selectedPatient.mrn}
                         </Typography>
                       </Box>
@@ -451,22 +454,15 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                 <Box sx={{ display: "flex", gap: 1.5 }}>
                   <Button
                     variant="contained"
+                    color="primary"
                     fullWidth
                     disabled={!selectedPatient}
                     onClick={handleProceed}
                     sx={{
-                      bgcolor: "#3B3B8F",
-                      fontWeight: 700,
+                      fontWeight: 400,
                       fontSize: "15px",
                       py: 1.5,
-                      borderRadius: "8px",
-                      letterSpacing: "0.01em",
                       textTransform: "none",
-                      "&:hover": { bgcolor: "#2d2d7a" },
-                      "&.Mui-disabled": {
-                        bgcolor: "#c5c5e0",
-                        color: "#ffffff",
-                      },
                     }}
                   >
                     Proceed
@@ -475,17 +471,16 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                     variant="outlined"
                     onClick={handleCancel}
                     sx={{
-                      color: "#d32f2f",
-                      borderColor: "#d32f2f",
+                      color: "error.main",
+                      borderColor: "error.main",
                       fontWeight: 600,
                       fontSize: "15px",
                       py: 1.5,
                       px: 3,
-                      borderRadius: "8px",
                       textTransform: "none",
                       "&:hover": {
                         bgcolor: "#fff5f5",
-                        borderColor: "#d32f2f",
+                        borderColor: "error.main",
                       },
                     }}
                   >
@@ -502,15 +497,14 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
                   variant="outlined"
                   onClick={handleCancel}
                   sx={{
-                    color: "#d32f2f",
-                    borderColor: "#d32f2f",
+                    color: "error.main",
+                    borderColor: "error.main",
                     fontWeight: 600,
                     fontSize: "15px",
                     py: 1.5,
                     px: 3,
-                    borderRadius: "8px",
                     textTransform: "none",
-                    "&:hover": { bgcolor: "#fff5f5", borderColor: "#d32f2f" },
+                    "&:hover": { bgcolor: "#fff5f5", borderColor: "error.main" },
                   }}
                 >
                   Cancel
@@ -529,12 +523,13 @@ export default function PatientPickerPage({ onProceed, onCancel, sessionDataKeyC
           py: 2,
           px: 2,
           fontSize: "12px",
-          color: "#9090a8",
-          borderTop: "1px solid #e0e0e0",
-          bgcolor: "#ffffff",
+          color: "text.secondary",
+          borderTop: "1px solid",
+          borderColor: "divider",
+          bgcolor: "background.paper",
         }}
       >
-        <Typography variant="caption" sx={{ color: "#9090a8" }}>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
           WSO2 Healthcare | © {new Date().getFullYear()}
         </Typography>
       </Box>
