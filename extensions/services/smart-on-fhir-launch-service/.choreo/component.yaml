@@ -1,0 +1,11 @@
+schemaVersion: 1.2
+endpoints:
+  - name: smart-launch-service
+    displayName: SMART Launch Service
+    service:
+      basePath: /
+      port: 9092
+    type: REST
+    networkVisibilities:
+      - Project
+      - Public
