@@ -37,7 +37,7 @@ export default function ConsentPage({
   user,
   scopes = [],  
   mandatoryClaims = "",
-  consentAuthorizeRedirectUrl,
+  consentAuthorizeRedirectUrl = "https://localhost:9443/oauth2/authorize",
   additionalContext = [],
   onApprove,
   onDeny,
@@ -96,10 +96,10 @@ export default function ConsentPage({
   };
 
   const submitAuthorizeForm = (consent, scopesToSubmit) => {
-    const targetUrl = consentAuthorizeRedirectUrl || "/consent";
+    const targetUrl = consentAuthorizeRedirectUrl;
     const form = document.createElement("form");
     form.method = "post";
-    form.action = "/consent";
+    form.action = targetUrl;
     const fields = {
       sessionDataKeyConsent: sessionDataKeyConsent,
       consent: consent,
