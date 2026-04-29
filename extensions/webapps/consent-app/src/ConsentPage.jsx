@@ -35,12 +35,24 @@ export default function ConsentPage({
   sessionDataKeyConsent,
   spId,
   user,
-  scopes = [],
+  scopes = [],  
+  mandatoryClaims = "",
+  consentAuthorizeRedirectUrl,
   additionalContext = [],
   onApprove,
   onDeny,
 }) {
   const additionalContextValues = Array.isArray(additionalContext) ? additionalContext : [];
+  // Parse mandatoryClaims string (e.g. "0_Telephone,2_Phone Verified,3_Email")
+  // into [{id: "0", name: "Telephone"}, {id: "2", name: "Phone Verified"}, ...]
+  const claims = mandatoryClaims
+    ? mandatoryClaims.split(",").map((c) => {
+        const idx = c.indexOf("_");
+        return idx >= 0
+          ? { id: c.substring(0, idx), name: c.substring(idx + 1) }
+          : { id: c, name: c };
+      })
+    : [];
   // Validate SMART scopes: if it starts with patient/user/system/ it must match the full regex
   const scopeRegex = /^(patient|user|system)\/(\*|[A-Za-z]+)\.(cruds|(?=[cruds]+$)c?r?u?d?s?)$/;
   const isValidScope = (s) => {
@@ -68,63 +80,67 @@ export default function ConsentPage({
 
   const selectedScopes = selectableScopes.filter((s) => checked[s]);
 
-  const handleApprove = () => {
-    if (onApprove) {
-      onApprove({
-        sessionDataKeyConsent,
-        spId,
-        user,
-        scopes: [...selectedScopes, ...hiddenScopes],
-        additionalContext: additionalContextValues,
+  const storeScopes = async (scopesToStore) => {
+    try {
+      await fetch("/store-scopes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionDataKeyConsent,
+          scopes: scopesToStore,
+        }),
       });
-      return;
+    } catch (err) {
+      console.warn("Failed to store scopes:", err);
     }
-    // Real form submission
+  };
+
+  const submitAuthorizeForm = (consent, scopesToSubmit) => {
+    const targetUrl = consentAuthorizeRedirectUrl || "/consent";
     const form = document.createElement("form");
     form.method = "post";
     form.action = "/consent";
     const fields = {
-      SessionDataKeyConsent: sessionDataKeyConsent,
-      spId,
-      user,
-      Consent: "approve",
+      sessionDataKeyConsent: sessionDataKeyConsent,
+      consent: consent,
       hasApprovedAlways: "false",
-      User_claims_consent: "true",
+      user_claims_consent: "true",
+      user: user,
+      spId: spId,
     };
+    // Append consent_<id>: "approved" for each mandatory claim
+    claims.forEach((c) => {
+      fields[`consent_${c.id}`] = "approved";
+    });
     Object.entries(fields).forEach(([k, v]) => {
       const el = document.createElement("input");
       el.type = "hidden"; el.name = k; el.value = v;
       form.appendChild(el);
     });
-    [...selectedScopes, ...hiddenScopes].forEach((s) => {
+    if (scopesToSubmit && scopesToSubmit.length > 0) {
       const el = document.createElement("input");
-      el.type = "hidden"; el.name = "scope"; el.value = s;
+      el.type = "hidden";
+      el.name = "scope";
+      el.value = scopesToSubmit.join(" ");
       form.appendChild(el);
-    });
+    }
     document.body.appendChild(form);
     form.submit();
   };
 
+  const handleApprove = async () => {
+    if (onApprove) {
+      onApprove({ sessionDataKeyConsent, spId, user, scopes: [...selectedScopes, ...hiddenScopes] });
+      return;
+    }
+    const allScopes = [...selectedScopes, ...hiddenScopes];
+    await storeScopes(allScopes);
+    submitAuthorizeForm("approve", allScopes);
+  };
+
   const handleDeny = () => {
     if (onDeny) { onDeny(); return; }
-    const form = document.createElement("form");
-    form.method = "post";
-    form.action = "/consent";
-    const fields = {
-      SessionDataKeyConsent: sessionDataKeyConsent,
-      Consent: "deny",
-      hasApprovedAlways: "false",
-      User_claims_consent: "true",
-      spId,
-      user,
-    };
-    Object.entries(fields).forEach(([k, v]) => {
-      const el = document.createElement("input");
-      el.type = "hidden"; el.name = k; el.value = v;
-      form.appendChild(el);
-    });
-    document.body.appendChild(form);
-    form.submit();
+    submitAuthorizeForm("deny", []);
   };
 
   return (
@@ -149,6 +165,23 @@ export default function ConsentPage({
           <div className="meta-row">
             <span className="meta-badge">👤 {user}</span>
           </div>
+
+          {/* Mandatory claims */}
+          {claims.length > 0 && (
+            <>
+              <div className="section-label">Required User Attributes</div>
+              <div className="scope-list">
+                {claims.map((c, i) => (
+                  <div
+                    key={c.id}
+                    className={`scope-item checked ${i === claims.length - 1 ? "last" : ""}`.trim()}
+                  >
+                    <span className="scope-label checked">{c.name}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Selectable scopes */}
           {selectableScopes.length > 0 ? (
