@@ -333,7 +333,7 @@ public type ApiKeysConfig record {|
 # + launchId - launch id.
 # + aud - audience for the EHR launch context, which is the identifier of the client application the launch is intended for.
 # + expiry - expiration time of the EHR launch context.
-public type EhrLaunchContext record {| 
+public type EhrLaunchContext record {|
     string patientId?;
     string encounterId?;
     string launchId;

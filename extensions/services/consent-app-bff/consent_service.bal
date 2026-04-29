@@ -34,9 +34,6 @@ configurable string consentStoreDbUrl = "jdbc:h2:./resources/consent_scopes";
 configurable string consentStoreDbUser = "sa";
 configurable string consentStoreDbPassword = "";
 
-// Path to the Vite build output (dist/) folder
-configurable string uiDistPath = "resources/consent-ui";
-
 final jdbc:Client consentStoreDbClient = checkpanic new (
     url = consentStoreDbUrl,
     user = consentStoreDbUser,
@@ -72,6 +69,42 @@ service / on consentListener {
             sessionDataKeyConsent,
             scopes: approvedScopes
         });
+        return response;
+    }
+
+    resource function get api/consent\-context(http:Request req) returns http:Response {
+        map<string[]> queryParams = req.getQueryParams();
+        string? sessionDataKeyConsent = getFirstValue(queryParams, "sessionDataKeyConsent");
+        string spId = getFirstValue(queryParams, "spId") ?: "";
+
+        if !(sessionDataKeyConsent is string) || sessionDataKeyConsent == "" {
+            return buildTextResponse(400, "Missing required query parameter: sessionDataKeyConsent");
+        }
+
+        json|error consentContext = fetchConsentContext(sessionDataKeyConsent);
+        if consentContext is error {
+            log:printError("Failed to load consent context", 'error = consentContext,
+                sessionDataKeyConsent = sessionDataKeyConsent);
+            return buildTextResponse(502, "Failed to load consent context data");
+        }
+
+        string[] scopes = extractScopesFromContext(consentContext);
+        string user = extractUserFromContext(consentContext);
+
+        json responsePayload = {
+            sessionDataKeyConsent: sessionDataKeyConsent,
+            spId: spId,
+            user: user,
+            scopes: scopes,
+            context: consentContext
+        };
+
+        log:printInfo("Serving consent context", sessionDataKeyConsent = sessionDataKeyConsent,
+            spId = spId, user = user, scopes = scopes);
+
+        http:Response response = new;
+        response.setHeader("Content-Type", "application/json");
+        response.setPayload(responsePayload);
         return response;
     }
 
@@ -501,22 +534,6 @@ function getMimeType(string filename) returns string {
     if filename.endsWith(".png") { return "image/png"; }
     if filename.endsWith(".ico") { return "image/x-icon"; }
     return "application/octet-stream";
-}
-
-function escapeJson(string value) returns string {
-    string escaped = re `\\`.replaceAll(value, "\\\\");
-    escaped = re `"`.replaceAll(escaped, "\\\"");
-    escaped = re `\n`.replaceAll(escaped, "\\n");
-    escaped = re `\r`.replaceAll(escaped, "\\r");
-    escaped = re `\t`.replaceAll(escaped, "\\t");
-    return escaped;
-}
-
-function escapeForScriptTag(string value) returns string {
-    string escaped = re `</script`.replaceAll(value, "<\\/script");
-    escaped = re `<`.replaceAll(escaped, "\\u003c");
-    escaped = re `&`.replaceAll(escaped, "\\u0026");
-    return escaped;
 }
 
 function getEncodedUri(anydata value) returns string {
