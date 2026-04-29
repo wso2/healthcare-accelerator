@@ -37,11 +37,12 @@ extensions/services/consent-app-bff-v2/  ← Ballerina BFF
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/v2/get-consent-data?sessionDataKeyConsent=&spId=` | Fetches consent context from IDP OauthConsentKey API; returns flow type, data, signed consentToken |
-| GET | `/v2/me?userId=` | Proxies SCIM2 `GET /Users/{userId}` (used for practitioner detection in scope flow) |
-| GET | `/v2/patients` | Proxies SCIM2 `POST /Users/.search` filtered by `fhirUser co Patient` (scope flow patient picker) |
+| GET | `/v2/get-consent-data?sessionDataKeyConsent=&spId=` | **Aggregated**: BFF makes all upstream calls internally (IDP, SCIM user, SCIM patients, OpenFGC) and returns everything the UI needs in one response |
 | POST | `/v2/submit-consent` | Validates JWT; stores consent in OpenFGC; POSTs to IDP authorize endpoint; returns redirect URL |
-| GET | `/v2/approved-scopes?sessionDataKeyConsent=` | For iam-service-extensions — looks up OpenFGC by `sessionDataKeyConsent` attribute, returns approved scopes |
+
+> **Architecture note:** The UI makes exactly one call on load (`GET /v2/get-consent-data`) and one on submit. There are no separate `/me`, `/patients`, or `/approved-scopes` endpoints. The BFF aggregates all upstream calls server-side in parallel before responding.
+
+> **iam-service-extensions integration:** iam-service-extensions queries OpenFGC **directly** (no BFF hop). It looks up `GET {openfgcBaseUrl}/consents/attributes?key=sessionDataKeyConsent&value=<key>` → resolves consentId → `GET {openfgcBaseUrl}/consents/{consentId}` → extracts `authorizations[0].resources.scopes`. This requires adding OpenFGC config (`openfgcBaseUrl`, `orgId`, `tppClientId`) to iam-service-extensions and removing `approvedScopesApiBaseUrl`.
 
 ### IDP integration (IDP-agnostic)
 - OAuth2 client credentials → Bearer token for all IDP calls (same for WSO2 IS and Asgardeo)
@@ -75,9 +76,10 @@ extensions/services/consent-app-bff-v2/  ← Ballerina BFF
 ```
 
 ### iam-service-extensions integration
-- v2 BFF exposes `GET /v2/approved-scopes?sessionDataKeyConsent=`
-- Looks up OpenFGC: `GET /consents/attributes?key=sessionDataKeyConsent&value=<key>` → gets consentId → `GET /consents/{consentId}` → extracts `authorizations[0].resources.scopes`
-- iam-service-extensions config: set `approvedScopesApiBaseUrl = "http://localhost:9092/v2/approved-scopes"`
+- iam-service-extensions queries OpenFGC **directly** — no BFF hop
+- Add to iam-service-extensions config: `openfgcBaseUrl`, `orgId`, `tppClientId`
+- Remove from iam-service-extensions config: `approvedScopesApiBaseUrl`
+- Lookup sequence: `GET {openfgcBaseUrl}/consents/attributes?key=sessionDataKeyConsent&value=<key>` → `consentIds[0]` → `GET {openfgcBaseUrl}/consents/{consentId}` → `authorizations[0].resources.scopes`
 
 ### Files
 
@@ -144,6 +146,45 @@ elements = ["Patient", "Observation", "Condition", ...]
 - React Router v6
 - `StrictMode` omitted (IDP OauthConsentKey API invalidates session on double-invoke)
 
+### get-consent-data response shapes
+
+**Scope flow:**
+```json
+{
+  "flow": "scope",
+  "sessionDataKeyConsent": "...",
+  "spId": "...",
+  "user": { "id": "...", "displayName": "John Smith", "email": "john@example.com" },
+  "isPractitioner": true,
+  "patients": [{ "id": "...", "name": "Jane Doe", "mrn": "MRN-001", "fhirUser": "Patient/123" }],
+  "scopes": ["patient/Observation.read", "patient/Patient.read"],
+  "hiddenScopes": ["OH_launch/abc"],
+  "previouslyApprovedScopes": ["patient/Observation.read"],
+  "consentToken": "<jwt>"
+}
+```
+- `patients` only present when `isPractitioner: true`
+- `previouslyApprovedScopes` only when `singleConsentPerUser=true` and prior consent found
+- BFF makes these upstream calls in parallel: OauthConsentKey → SCIM user → (if practitioner) SCIM patient search + (if singleConsentPerUser) OpenFGC lookup
+
+**Purpose flow:**
+```json
+{
+  "flow": "purpose",
+  "sessionDataKeyConsent": "...",
+  "spId": "...",
+  "appName": "MyHealthApp",
+  "user": { "id": "...", "displayName": "John Smith", "email": "john@example.com" },
+  "purposes": [{ "purposeName": "All Health Data Access", "mandatory": false, "purposeDescription": "...", "elements": ["Patient", "Observation"] }],
+  "existingConsentId": "...",
+  "previouslyConsentedPurposeNames": ["All Health Data Access"],
+  "previouslyConsentedElements": { "All Health Data Access": ["Patient"] },
+  "consentToken": "<jwt>"
+}
+```
+- `existingConsentId`, `previouslyConsented*` only when `singleConsentPerUser=true` and prior consent found
+- BFF makes these upstream calls in parallel: OauthConsentKey → SCIM user + (if singleConsentPerUser) OpenFGC lookup
+
 ### Files
 
 | File | Purpose |
@@ -152,21 +193,23 @@ elements = ["Patient", "Observation", "Condition", ...]
 | `src/App.tsx` | Fetches `/v2/get-consent-data`, routes to correct flow/page |
 | `src/ScopeConsentPage.tsx` | SMART scope checkboxes, OH_launch hidden, select-all/clear |
 | `src/PurposeConsentPage.tsx` | Purpose+element hierarchy, mandatory, indeterminate state, previously consented |
-| `src/PatientPickerPage.tsx` | Practitioner patient picker (scope flow) |
+| `src/PatientPickerPage.tsx` | Practitioner patient picker (receives `patients[]` from App as props — no additional API calls) |
 | `src/types.ts` | Shared TypeScript types for API responses and component props |
-| `src/api.ts` | Typed fetch helpers (`getConsentData`, `getMe`, `getPatients`, `submitConsent`) |
+| `src/api.ts` | Typed fetch helpers (`getConsentData`, `submitConsent`) — only 2 functions needed |
 | `src/index.css` | Global styles |
 
 ### App.tsx routing logic
 
 ```
 URL: /consent?sessionDataKeyConsent=&spId=
-  ↓ fetch GET /v2/get-consent-data
+  ↓ fetch GET /v2/get-consent-data  ← single API call, all data arrives here
   ↓ if flow === "scope":
-      if isPractitioner && !selectedPatient → PatientPickerPage
-      else → ScopeConsentPage
+      if isPractitioner && !selectedPatient
+        → PatientPickerPage(patients=data.patients, user=data.user)
+      else
+        → ScopeConsentPage(scopes, hiddenScopes, user, selectedPatient)
   ↓ if flow === "purpose":
-      → PurposeConsentPage
+      → PurposeConsentPage(purposes, user, appName, previouslyConsented*)
 ```
 
 ### ScopeConsentPage
@@ -184,9 +227,9 @@ URL: /consent?sessionDataKeyConsent=&spId=
 - Snackbar for submit errors
 
 ### PatientPickerPage
-- Parallel fetch: `GET /v2/me` + `GET /v2/patients`
-- Oxygen UI: AppBar, Card, Select dropdown, Avatar, Chip, CircularProgress
-- Error banners per failed call
+- **No API calls** — receives `patients[]` and `user` as props from App (data already in get-consent-data response)
+- Oxygen UI: AppBar, Card, Select dropdown, Avatar, Chip
+- Error banner if patients list is empty
 - Proceed (disabled until patient selected) + Cancel
 
 ### Vite proxy (dev only)
@@ -220,6 +263,6 @@ proxy: { '/v2': 'http://localhost:9092' }
 1. `bal build` in consent-app-bff-v2/ → clean compile
 2. `bal test` in consent-app-bff-v2/ → all tests pass
 3. `npm run build` in consent-app-v2/ → clean TypeScript compile
-4. Manual: BFF with `consentFlow=scope` → `GET /v2/get-consent-data` → verify response shape
-5. Manual: BFF with `consentFlow=purpose` → `GET /v2/get-consent-data` → verify response shape
-6. Manual: `GET /v2/approved-scopes` → verify returns scopes from OpenFGC
+4. Manual: BFF with `consentFlow=scope` → `GET /v2/get-consent-data` → verify response includes `flow`, `scopes`, `user`, `isPractitioner`, `patients` (if practitioner), `consentToken`
+5. Manual: BFF with `consentFlow=purpose` → `GET /v2/get-consent-data` → verify response includes `flow`, `appName`, `purposes`, `user`, `consentToken`
+6. Manual: `POST /v2/submit-consent` → verify OpenFGC consent record created with correct shape, and response contains `redirectUrl`
