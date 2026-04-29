@@ -1,0 +1,13 @@
+[package]
+org = "wso2"
+name = "smart.fhir.launch.service"
+version = "1.0.0"
+distribution = "2201.12.11"
+
+[build-options]
+observabilityIncluded = true
+
+[[platform.java17.dependency]]
+groupId = "com.h2database"
+artifactId = "h2"
+version = "2.2.224"
