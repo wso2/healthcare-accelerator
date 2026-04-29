@@ -1,0 +1,10 @@
+[package]
+org = "wso2"
+name = "consent_app_bff"
+version = "0.1.0"
+distribution = "2201.12.7"
+
+[[dependency]]
+org = "ballerina"
+name = "jwt"
+version = "2.15.1"
