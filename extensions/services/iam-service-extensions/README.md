@@ -32,7 +32,7 @@ SMART on FHIR scopes follow the format `<context>/<resource>.<operations>` (e.g.
 **Expansion:**
 Compound operation strings are split into individual single-character operation scopes:
 
-```
+```text
 patient/Observation.cruds  →  patient/Observation.c
                                patient/Observation.r
                                patient/Observation.u
