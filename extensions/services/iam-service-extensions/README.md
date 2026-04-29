@@ -80,21 +80,35 @@ These claims are added via `add` patch operations on `/accessToken/claims`.
 
 All runtime configuration is done via `Config.toml`.
 
-| Configurable | Default | Description |
-|---|---|---|
-| `hostname` | `localhost` | Listener hostname |
-| `port` | `9090` | Listener port |
-| `approvedScopesApiBaseUrl` | `http://localhost:9091/approved-scopes` | Consent service endpoint for fetching approved scopes by consent key |
-| `ehrContextResolveUrl` | `""` | EHR launch context resolve endpoint. Leave empty to disable launch context resolution |
-| `scimApiBaseUrl` | `""` | SCIM2 base URL for user lookups |
-| `scimApiPath` | `/scim2/Users` | SCIM2 users resource path |
-| `scimApiUsername` | `""` | SCIM2 basic auth username |
-| `scimApiPassword` | `""` | SCIM2 basic auth password |
-| `scimApiTrustStorePath` | `""` | Trust store path for SCIM2 HTTPS connections |
-| `scimApiTrustStorePassword` | `""` | Trust store password |
-| `scimPatientGroupName` | `patient` | SCIM group name that identifies patient users |
-| `fhirUserAttributeName` | `fhirUser` | SCIM custom schema attribute holding the FHIR user reference |
-| `alwaysAllowedScopes` | `["openid"]` | Scopes that are always permitted regardless of the approved scope list |
+```toml
+# Listener
+hostname = "localhost"
+port = 9090
+
+# Consent service — approved scopes lookup endpoint
+approvedScopesApiBaseUrl = "http://localhost:9091/approved-scopes"
+
+# EHR launch context resolve endpoint (leave empty to disable EHR launch support)
+ehrContextResolveUrl = "http://localhost:9092/launch-context"
+
+# SCIM2 user lookup (used to resolve patient ID from logged-in user's profile)
+scimApiBaseUrl = "https://localhost:9443"
+scimApiPath = "/scim2/Users"
+scimApiUsername = "<username>"
+scimApiPassword = "<password>"
+# Required only when scimApiBaseUrl uses HTTPS with a custom certificate
+scimApiTrustStorePath = "/path/to/truststore.p12"
+scimApiTrustStorePassword = "truststorepassword"
+
+# SCIM group name that identifies patient users
+scimPatientGroupName = "patient"
+
+# SCIM custom schema attribute that holds the FHIR user reference (e.g. "Patient/123")
+fhirUserAttributeName = "fhirUser"
+
+# Scopes that are always included in the token regardless of the approved scope list
+alwaysAllowedScopes = ["openid", "profile"]
+```
 
 ---
 
