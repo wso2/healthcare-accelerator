@@ -1,0 +1,47 @@
+# consent-app-bff-v2 Configuration Template
+# Copy to Config.toml and fill in your values.
+
+hostname = "localhost"
+port = 9092
+corsAllowedOrigin = "http://localhost:5176"
+
+# IDP base URL — works for both WSO2 IS and Asgardeo
+# WSO2 IS example:   "https://localhost:9443"
+# Asgardeo example:  "https://api.asgardeo.io/t/mytenant"
+idpBaseUrl = "https://localhost:9443"
+
+# Leave empty to default to {idpBaseUrl}/oauth2/token
+idpTokenEndpoint = ""
+
+clientId = "<oauth2-client-id>"
+clientSecret = "<oauth2-client-secret>"   # also used as JWT signing secret
+
+# Consent flow: "scope" for SMART scope flow, "purpose" for purpose+element flow
+consentFlow = "scope"
+
+openfgcBaseUrl = "http://localhost:8080"
+orgId = "<openfgc-org-id>"
+tppClientId = "<openfgc-tpp-client-id>"
+consentType = "smart-consent"
+
+# Scope flow specific
+scopeConsentPurposeName = "SMART Scope Authorization"
+scopeConsentElementName = "scope-access"
+alwaysAllowedScopes = ["openid"]
+
+singleConsentPerUser = false
+showConsentElements = true
+
+# Purpose flow: define one or more [[consentPurpose]] blocks
+[[consentPurpose]]
+name = "All Health Data Access"
+description = "Access your health data related to USCDI."
+mandatory = false
+elements = [
+    "MedicationDispense", "Coverage", "CareTeam", "RelatedPerson", "DiagnosticReport",
+    "PractitionerRole", "Goal", "MedicationRequest", "Location", "CarePlan",
+    "Provenance", "Patient", "Observation", "Condition", "ServiceRequest",
+    "QuestionnaireResponse", "Medication", "Immunization", "Specimen", "Procedure",
+    "Practitioner", "Organization", "Device", "AllergyIntolerance", "DocumentReference",
+    "Encounter"
+]

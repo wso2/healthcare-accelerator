@@ -1,0 +1,5 @@
+# Contains secrets — do not commit
+Config.toml
+
+# Ballerina build artifacts
+target/

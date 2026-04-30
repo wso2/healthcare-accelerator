@@ -11,7 +11,7 @@
 | Oxygen UI import | `@oxygen-ui/react` | `@wso2/oxygen-ui` |
 | Theme setup | `extendTheme` | `OxygenUIThemeProvider + AcrylicOrangeTheme` |
 | BFF protocol | Vite proxy `/api/*` to `localhost:9091` | Direct `VITE_CONSENT_BFF_URL` env var |
-| Auth redirect | POST form to `/consent` | POST form to `VITE_ASGARDEO_AUTHORIZE_URL` |
+| Auth redirect | POST form to `consentAuthorizeRedirectUrl` prop (configurable, default `https://localhost:9443/oauth2/authorize`) | POST form to `VITE_ASGARDEO_AUTHORIZE_URL` |
 | Logo | WSO2 logo (CDN URL) | Asgardeo logo (local SVG asset) |
 | StrictMode | Yes | Intentionally omitted (Asgardeo API invalidates `sessionDataKeyConsent` on double-invoke) |
 | Config | No env vars needed | `.env` with 2 required vars |
@@ -25,7 +25,11 @@
 - `OH_launch/*` scopes are hidden from the user but always included on approval
 - SMART scopes (`patient/`, `user/`, `system/`) validated against regex: `(patient|user|system)/{ResourceType}.{cruds}`
 - User can toggle individual scopes via checkboxes; bulk select/clear all available
-- Approved scopes POSTed as `scope` fields to `/consent`
+- **`mandatoryClaims`** prop (new): parsed from `"0_Telephone,2_Email"` format; shown as non-toggleable "Required User Attributes" section above scopes; submitted as `consent_<id>: "approved"` fields
+- **Before approve**: calls `POST /store-scopes` (fire-and-forget JSON) with `{sessionDataKeyConsent, scopes}`
+- **On approve/deny**: form POSTs directly to `consentAuthorizeRedirectUrl` (configurable, defaults to `https://localhost:9443/oauth2/authorize`)
+- Scopes submitted as single space-joined `scope` field (not multiple `scope` fields)
+- Form field names (lowercase): `sessionDataKeyConsent`, `consent`, `user_claims_consent`
 
 ### consent-app-v1 — Purposes + Elements (hierarchical)
 - Purposes fetched from `{BFF_URL}/v1/get-consent-data`
@@ -46,9 +50,9 @@
 3. Fetches user info from `GET /api/me?userId=`
 4. **If user is a Practitioner** (`fhirUser` contains `"Practitioner"`):
    - Shows `PatientPickerPage` → user selects a patient
-   - Selected patient serialized as `additionalContext` in the consent submission
 5. **Otherwise**: Goes directly to `ConsentPage`
-6. Approve/Deny → form POST to `/consent`
+6. If approving: `POST /store-scopes` (fire-and-forget) → form POST to `consentAuthorizeRedirectUrl`
+7. If denying: form POST directly to `consentAuthorizeRedirectUrl`
 
 ### consent-app-v1
 1. URL: `/consent-page?sessionDataKeyConsent=<token>&spId=<id>`
@@ -68,6 +72,7 @@
 | `GET /api/consent-context` | Returns `sessionDataKeyConsent`, `spId`, `user`, `scopes[]` |
 | `GET /api/me?userId=` | Returns SCIM user; `fhirUser` field determines practitioner |
 | `GET /api/patients` | Returns SCIM `Resources[]` of patients (practitioner flow only) |
+| `POST /store-scopes` | Fire-and-forget; persists `{sessionDataKeyConsent, scopes}` before authorize redirect |
 
 ### consent-app-v1 (`VITE_CONSENT_BFF_URL`)
 
@@ -104,3 +109,6 @@
 | App name display | No | Yes |
 | Practitioner patient picker | **Yes** | No |
 | SMART scope validation | **Yes** | No |
+| Mandatory claims display | **Yes** (`mandatoryClaims` prop) | No |
+| Pre-authorize scope persistence (`POST /store-scopes`) | **Yes** | No |
+| Configurable authorize redirect URL | **Yes** | No (env var only) |

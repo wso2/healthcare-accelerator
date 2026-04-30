@@ -49,7 +49,8 @@ extensions/services/consent-app-bff-v2/  ← Ballerina BFF
 - 401-retry: on HTTP 401, fetch a fresh token and retry once
 - Configurable `idpBaseUrl` (e.g. `https://api.asgardeo.io/t/mytenant` or `https://localhost:9443`)
 - OauthConsentKey API: `GET {idpBaseUrl}/api/identity/auth/v1.1/data/OauthConsentKey/{sessionDataKeyConsent}`
-- Authorize POST: `POST {idpAuthorizeUrl}` with `sessionDataKeyConsent`, `consent=approve|deny`, cookies forwarded → returns redirect URL to UI
+- Authorize POST: `POST {idpAuthorizeUrl}` with `sessionDataKeyConsent`, `consent=approve|deny`, `user_claims_consent=true`, `consent_<id>=approved` per mandatory claim, `scope=<space-joined>`, cookies forwarded → returns redirect URL to UI
+- Note: v2 BFF handles OpenFGC storage + IDP authorize POST in `submit-consent` — no separate `/store-scopes` endpoint needed
 
 ### OpenFGC data models
 
@@ -159,6 +160,7 @@ elements = ["Patient", "Observation", "Condition", ...]
   "patients": [{ "id": "...", "name": "Jane Doe", "mrn": "MRN-001", "fhirUser": "Patient/123" }],
   "scopes": ["patient/Observation.read", "patient/Patient.read"],
   "hiddenScopes": ["OH_launch/abc"],
+  "mandatoryClaims": "0_Telephone,2_Email",
   "previouslyApprovedScopes": ["patient/Observation.read"],
   "consentToken": "<jwt>"
 }
@@ -214,9 +216,10 @@ URL: /consent?sessionDataKeyConsent=&spId=
 
 ### ScopeConsentPage
 - SMART scope regex validation: `^(patient|user|system)/(\*|[A-Za-z]+)\.(cruds|c?r?u?d?s?)$`
-- OH_launch/* hidden, always included on approve
+- `OH_launch/*` hidden, always included on approve
+- **`mandatoryClaims`**: displayed as non-toggleable "Required User Attributes" section; submitted as `consent_<id>: "approved"` fields in the authorize form
 - Scope checkboxes + select-all/clear-all + count badge
-- On Approve/Deny: POST `/v2/submit-consent` → `window.location.href = response.redirectUrl`
+- On Approve/Deny: POST `/v2/submit-consent` (stores in OpenFGC) → `window.location.href = response.redirectUrl`
 - Error banner if submit fails
 
 ### PurposeConsentPage

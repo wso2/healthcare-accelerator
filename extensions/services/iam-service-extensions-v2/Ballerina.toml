@@ -1,0 +1,9 @@
+[package]
+org = "ballerinax"
+name = "iam_service_extensions_v2"
+version = "0.1.0"
+distribution = "2201.12.10"
+keywords = ["Healthcare", "IAM", "extensions"]
+
+[build-options]
+observabilityIncluded = true
