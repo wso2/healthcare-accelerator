@@ -446,6 +446,11 @@ service /v2 on consentBffListener {
                 });
             }
 
+            string[] allRequestedScopes = [];
+            foreach string s in re ` `.split(scopeStr) {
+                if s != "" { allRequestedScopes.push(s); }
+            }
+
             PurposeConsentData purposeData = {
                 flow: "purpose",
                 sessionDataKeyConsent: sessionDataKeyConsent,
@@ -453,6 +458,8 @@ service /v2 on consentBffListener {
                 appName: application,
                 user: consentUser,
                 purposes: purposeList,
+                scopes: allRequestedScopes,
+                mandatoryClaims: mandatoryClaims,
                 consentToken: consentToken
             };
 

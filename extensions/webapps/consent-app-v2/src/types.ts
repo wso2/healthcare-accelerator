@@ -53,6 +53,8 @@ export interface PurposeConsentData {
   appName: string;
   user: ConsentUser;
   purposes: ConsentPurpose[];
+  scopes: string[];
+  mandatoryClaims: string;
   existingConsentId?: string;
   previouslyConsentedPurposeNames?: string[];
   previouslyConsentedElements?: Record<string, string[]>;

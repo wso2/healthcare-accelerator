@@ -21,7 +21,19 @@ import type { PurposeConsentData, ConsentPurpose } from './types';
 
 const IDP_AUTHORIZE_URL = import.meta.env.VITE_IDP_AUTHORIZE_URL ?? '';
 
-function submitIdpForm(sessionDataKeyConsent: string, approved: boolean) {
+function parseMandatoryClaims(raw: string): Array<{ id: string }> {
+  if (!raw) return [];
+  return raw.split(',').map((c) => {
+    const idx = c.indexOf('_');
+    return { id: idx >= 0 ? c.slice(0, idx) : c };
+  });
+}
+
+function submitIdpForm(
+  sessionDataKeyConsent: string,
+  approved: boolean,
+  options?: { scopes?: string[]; claims?: Array<{ id: string }> },
+) {
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = IDP_AUTHORIZE_URL;
@@ -37,7 +49,13 @@ function submitIdpForm(sessionDataKeyConsent: string, approved: boolean) {
   add('sessionDataKeyConsent', sessionDataKeyConsent);
   add('consent', approved ? 'approve' : 'deny');
   add('hasApprovedAlways', 'false');
-  if (approved) add('user_claims_consent', 'true');
+  if (approved) {
+    add('user_claims_consent', 'true');
+    for (const claim of options?.claims ?? []) {
+      add(`consent_${claim.id}`, 'approved');
+    }
+    if (options?.scopes && options.scopes.length > 0) add('scope', options.scopes.join(' '));
+  }
 
   document.body.appendChild(form);
   form.submit();
@@ -136,7 +154,10 @@ export default function PurposeConsentPage({ data }: Props) {
         consentedPurposes,
         ...(existingConsentId ? { existingConsentId } : {}),
       });
-      submitIdpForm(sessionDataKeyConsent, true);
+      submitIdpForm(sessionDataKeyConsent, true, {
+        claims: parseMandatoryClaims(data.mandatoryClaims),
+        scopes: data.scopes,
+      });
     } catch (err) {
       console.error('Failed to submit consent', err);
       setSubmitError('Failed to submit consent. Please try again.');

@@ -73,6 +73,8 @@ type PurposeConsentData record {|
     string appName;
     ConsentUser user;
     ConsentPurpose[] purposes;
+    string[] scopes;
+    string mandatoryClaims;
     string existingConsentId?;
     string[] previouslyConsentedPurposeNames?;
     map<string[]> previouslyConsentedElements?;
