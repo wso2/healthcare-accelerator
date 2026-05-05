@@ -17,7 +17,7 @@ clientId = "wr_2vZAjBMJwfOWm_Cg1dCZjUSAa"
 clientSecret = "XtncxzbZrBfvdErkK5tcVx30NRfRcWrnFy5LdcXtXXga"
 
 # Consent flow: "scope" for SMART scope flow, "purpose" for purpose+element flow
-consentFlow = "purpose"
+consentFlow = "scope"
 
 openfgcBaseUrl = "https://c32618cf-389d-44f1-93ee-b67a3468aae3-dev.e1-us-east-azure.choreoapis.dev/cms-paas/openfgc-consent-service/v1.0"
 orgId = "ORG-001"
