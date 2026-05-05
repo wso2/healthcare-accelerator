@@ -15,8 +15,42 @@
 import ballerina/http;
 import ballerina/log;
 import ballerina/oauth2;
+import ballerina/time;
 
 final http:Client openfgcClient = check new (openfgcBaseUrl);
+
+// Cached SCIM bearer token — avoids a token endpoint call on every request.
+isolated record {|string token; int expiresAt;|}? _scimTokenCache = ();
+
+// Lazy-init SCIM client — created on first use, reused across requests.
+isolated http:Client? _scimClient = ();
+
+isolated function getOrCreateScimClient() returns http:Client|error {
+    lock {
+        http:Client? existing = _scimClient;
+        if existing is http:Client {
+            return existing;
+        }
+        http:Client c = check new (scimApiBaseUrl);
+        _scimClient = c;
+        return c;
+    }
+}
+
+// Lazy-init EHR client — created on first use, reused across requests.
+isolated http:Client? _ehrClient = ();
+
+isolated function getOrCreateEhrClient() returns http:Client|error {
+    lock {
+        http:Client? existing = _ehrClient;
+        if existing is http:Client {
+            return existing;
+        }
+        http:Client c = check new (ehrContextResolveUrl);
+        _ehrClient = c;
+        return c;
+    }
+}
 
 // Looks up consentId for the given sessionDataKeyConsent from OpenFGC attributes endpoint.
 // Returns () if no consent found (caller should treat as SUCCESS with no operations).
@@ -101,17 +135,29 @@ isolated function getApprovedScopesByConsentId(string consentId) returns string[
     return scopes;
 }
 
-// Returns a fresh bearer token for SCIM using client credentials.
-// A new provider is created per call to avoid eager token fetch at module init.
+// Returns a bearer token for SCIM.
+// Returns the cached token if still valid; otherwise fetches a new one and caches it for 50 min.
 isolated function getScimToken() returns string|error {
-    string tokenUrl = scimTokenEndpoint == "" ? string `${scimApiBaseUrl}/oauth2/token` : scimTokenEndpoint;
+    int nowEpoch = time:utcNow()[0];
+    lock {
+        var cached = _scimTokenCache;
+        if cached is record {|string token; int expiresAt;|} && cached.expiresAt > nowEpoch + 60 {
+            log:printDebug("[SCIM] Using cached bearer token");
+            return cached.token;
+        }
+    }
+    string tokenUrl = scimTokenEndpoint != "" ? scimTokenEndpoint : string `${scimApiBaseUrl}/oauth2/token`;
     oauth2:ClientOAuth2Provider provider = new ({
         tokenUrl: tokenUrl,
         clientId: scimClientId,
         clientSecret: scimClientSecret,
         scopes: ["internal_user_mgt_view"]
     });
-    return check provider.generateToken();
+    string token = check provider.generateToken();
+    lock {
+        _scimTokenCache = {token: token, expiresAt: nowEpoch + 3000};
+    }
+    return token;
 }
 
 // Fetches SCIM user by ID for patient ID resolution.
@@ -124,7 +170,7 @@ isolated function fetchScimUser(string userId) returns json|error {
 
     log:printDebug("[SCIM] Fetching token via client credentials");
     string token = check getScimToken();
-    http:Client scimClient = check new (scimApiBaseUrl);
+    http:Client scimClient = check getOrCreateScimClient();
     string path = scimApiPath + "/" + getEncodedUri(userId);
     log:printDebug("[SCIM] GET user request", path = path);
     http:Response response = check scimClient->get(path, {
@@ -150,7 +196,7 @@ isolated function resolveLaunchContext(string launchId) returns EhrLaunchContext
         log:printDebug("[EHR] Skipped — ehrContextResolveUrl not configured");
         return ();
     }
-    http:Client ehrClient = check new (ehrContextResolveUrl);
+    http:Client ehrClient = check getOrCreateEhrClient();
     string path = string `?launch=${getEncodedUri(launchId)}`;
     log:printDebug("[EHR] GET launch context request", launchId = launchId, path = path);
     http:Response response = check ehrClient->get(path);
