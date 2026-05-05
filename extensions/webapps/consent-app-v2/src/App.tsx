@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { Box, CircularProgress, Typography } from '@wso2/oxygen-ui';
 import { getConsentData } from './api';
@@ -20,6 +20,38 @@ import ScopeConsentPage from './ScopeConsentPage';
 import PurposeConsentPage from './PurposeConsentPage';
 import PatientPickerPage from './PatientPickerPage';
 import type { ConsentData, ConsentPatient, ScopeConsentData, PurposeConsentData, RedirectConsentData } from './types';
+
+const IDP_AUTHORIZE_URL = import.meta.env.VITE_IDP_AUTHORIZE_URL ?? '';
+
+function AutoApproveScopePage({ sessionDataKeyConsent }: { sessionDataKeyConsent: string }) {
+  const submitted = useRef(false);
+  useEffect(() => {
+    if (submitted.current) return;
+    submitted.current = true;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = IDP_AUTHORIZE_URL;
+    const add = (name: string, value: string) => {
+      const el = document.createElement('input');
+      el.type = 'hidden';
+      el.name = name;
+      el.value = value;
+      form.appendChild(el);
+    };
+    add('sessionDataKeyConsent', sessionDataKeyConsent);
+    add('consent', 'approve');
+    add('hasApprovedAlways', 'false');
+    add('user_claims_consent', 'true');
+    document.body.appendChild(form);
+    form.submit();
+  }, [sessionDataKeyConsent]);
+
+  return (
+    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <CircularProgress size={36} />
+    </Box>
+  );
+}
 
 function ConsentRoute() {
   const [searchParams] = useSearchParams();
@@ -76,6 +108,9 @@ function ConsentRoute() {
 
   if (data.flow === 'scope') {
     const scopeData = data as ScopeConsentData;
+    if (scopeData.scopes.length === 0) {
+      return <AutoApproveScopePage sessionDataKeyConsent={sessionDataKeyConsent} />;
+    }
     if (scopeData.isPractitioner && !selectedPatient) {
       return (
         <PatientPickerPage

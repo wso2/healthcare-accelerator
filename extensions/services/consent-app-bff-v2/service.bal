@@ -387,6 +387,9 @@ service /v2 on consentBffListener {
             string[] visibleScopes = [];
 
             foreach string s in allScopes {
+                if s == "" {
+                    continue;
+                }
                 if s.startsWith("OH_launch/") {
                     hiddenScopes.push(s);
                     continue;
