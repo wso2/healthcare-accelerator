@@ -31,7 +31,8 @@ isolated function getOrCreateScimClient() returns http:Client|error {
         if existing is http:Client {
             return existing;
         }
-        http:Client c = check new (scimApiBaseUrl);
+        http:ClientConfiguration scimClientConfig = {secureSocket: buildHttpSecureSocket()};
+        http:Client c = check new (scimApiBaseUrl, scimClientConfig);
         _scimClient = c;
         return c;
     }
@@ -46,7 +47,8 @@ isolated function getOrCreateEhrClient() returns http:Client|error {
         if existing is http:Client {
             return existing;
         }
-        http:Client c = check new (ehrContextResolveUrl);
+        http:ClientConfiguration ehrClientConfig = {secureSocket: buildHttpSecureSocket()};
+        http:Client c = check new (ehrContextResolveUrl, ehrClientConfig);
         _ehrClient = c;
         return c;
     }
@@ -135,6 +137,20 @@ isolated function getApprovedScopesByConsentId(string consentId) returns string[
     return scopes;
 }
 
+isolated function buildHttpSecureSocket() returns http:ClientSecureSocket? {
+    if trustStorePath != "" && trustStorePassword != "" {
+        return {cert: {path: trustStorePath, password: trustStorePassword}};
+    }
+    return ();
+}
+
+isolated function buildOAuth2SecureSocket() returns oauth2:SecureSocket? {
+    if trustStorePath != "" && trustStorePassword != "" {
+        return {cert: {path: trustStorePath, password: trustStorePassword}};
+    }
+    return ();
+}
+
 // Returns a bearer token for SCIM.
 // Returns the cached token if still valid; otherwise fetches a new one and caches it for 50 min.
 isolated function getScimToken() returns string|error {
@@ -146,13 +162,18 @@ isolated function getScimToken() returns string|error {
             return cached.token;
         }
     }
-    string tokenUrl = scimTokenEndpoint != "" ? scimTokenEndpoint : string `${scimApiBaseUrl}/oauth2/token`;
-    oauth2:ClientOAuth2Provider provider = new ({
+    string tokenUrl = scimTokenEndpoint == "" ? string `${scimApiBaseUrl}/oauth2/token` : scimTokenEndpoint;
+    oauth2:ClientCredentialsGrantConfig grantConfig = {
         tokenUrl: tokenUrl,
         clientId: scimClientId,
         clientSecret: scimClientSecret,
         scopes: ["internal_user_mgt_view"]
-    });
+    };
+    oauth2:SecureSocket? secureSocket = buildOAuth2SecureSocket();
+    if secureSocket != () {
+        grantConfig.clientConfig = {secureSocket};
+    }
+    oauth2:ClientOAuth2Provider provider = new (grantConfig);
     string token = check provider.generateToken();
     lock {
         _scimTokenCache = {token: token, expiresAt: nowEpoch + 3000};
@@ -197,7 +218,7 @@ isolated function resolveLaunchContext(string launchId) returns EhrLaunchContext
         return ();
     }
     http:Client ehrClient = check getOrCreateEhrClient();
-    string path = string `?launch=${getEncodedUri(launchId)}`;
+    string path = string `/launch=${getEncodedUri(launchId)}`;
     log:printDebug("[EHR] GET launch context request", launchId = launchId, path = path);
     http:Response response = check ehrClient->get(path);
     log:printDebug("[EHR] GET launch context response", statusCode = response.statusCode);

@@ -104,6 +104,16 @@ type SubmitConsentResponse record {|
     string message;
 |};
 
+// ─── EHR launch context ───────────────────────────────────────────────────────
+
+type EhrLaunchContext record {|
+    string launchId;
+    string patientId?;
+    string encounterId?;
+    string aud;
+    string expiry;
+|};
+
 // ─── IDP / OauthConsentKey response ──────────────────────────────────────────
 
 // Open record — IDP may return additional fields (mandatoryClaims, etc.)
@@ -112,6 +122,7 @@ type IdpConsentKeyResponse record {
     string scope;
     string loggedInUser;
     string mandatoryClaims?;
+    string spQueryParams?;
 };
 
 // Internal type returned by getScimUser — includes fhirUser for isPractitioner check.

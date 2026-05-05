@@ -33,5 +33,9 @@ configurable string scimTokenEndpoint = "";
 configurable string scimPatientGroupName = "patient";
 configurable string fhirUserAttributeName = "fhirUser";
 
+// Trust store for HTTPS connections to the IDP/SCIM/EHR endpoints
+configurable string trustStorePath = "";
+configurable string trustStorePassword = "";
+
 // Scopes that bypass consent checks (always included in token)
 configurable string[] alwaysAllowedScopes = ["openid"];
