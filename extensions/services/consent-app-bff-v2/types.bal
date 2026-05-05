@@ -47,6 +47,11 @@ type ConsentPurpose record {|
 
 // ─── get-consent-data response shapes ────────────────────────────────────────
 
+type RedirectConsentData record {|
+    string flow = "redirect";
+    string redirectUrl;
+|};
+
 type ScopeConsentData record {|
     string flow = "scope";
     string sessionDataKeyConsent;
@@ -105,6 +110,7 @@ type IdpConsentKeyResponse record {
     string scope;
     string loggedInUser;
     string mandatoryClaims?;
+    string spQueryParams?;
 };
 
 // Internal type returned by getScimUser — includes fhirUser for isPractitioner check.

@@ -19,7 +19,7 @@ import { getConsentData } from './api';
 import ScopeConsentPage from './ScopeConsentPage';
 import PurposeConsentPage from './PurposeConsentPage';
 import PatientPickerPage from './PatientPickerPage';
-import type { ConsentData, ConsentPatient, ScopeConsentData, PurposeConsentData } from './types';
+import type { ConsentData, ConsentPatient, ScopeConsentData, PurposeConsentData, RedirectConsentData } from './types';
 
 function ConsentRoute() {
   const [searchParams] = useSearchParams();
@@ -38,7 +38,13 @@ function ConsentRoute() {
       return;
     }
     getConsentData(sessionDataKeyConsent, spId)
-      .then(setData)
+      .then((d) => {
+        if (d.flow === 'redirect') {
+          window.location.replace((d as RedirectConsentData).redirectUrl);
+          return;
+        }
+        setData(d);
+      })
       .catch((err: unknown) => {
         console.error('Failed to load consent data', err);
         setError('Failed to load consent data. Please try again.');

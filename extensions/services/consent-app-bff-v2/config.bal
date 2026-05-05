@@ -47,6 +47,16 @@ configurable string scopeConsentElementName = "scope-access";
 # Scopes always approved without user interaction (not shown in UI)
 configurable string[] alwaysAllowedScopes = ["openid"];
 
+# Client IDs that use the scope flow when consentFlow = "auto"
+configurable string[] scopeConsentedApps = [];
+
+# Client IDs that use the purpose flow when consentFlow = "auto"
+configurable string[] purposeConsentedApps = [];
+
+# Fallback URL when consentFlow = "auto" and client_id is in neither list.
+# sessionDataKeyConsent and spId are appended as query params.
+configurable string defaultIdpConsentPage = "";
+
 # When true, look up an existing active consent and update it on re-submit
 configurable boolean singleConsentPerUser = false;
 

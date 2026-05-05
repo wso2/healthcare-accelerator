@@ -59,7 +59,12 @@ export interface PurposeConsentData {
   consentToken: string;
 }
 
-export type ConsentData = ScopeConsentData | PurposeConsentData;
+export interface RedirectConsentData {
+  flow: 'redirect';
+  redirectUrl: string;
+}
+
+export type ConsentData = ScopeConsentData | PurposeConsentData | RedirectConsentData;
 
 export interface ConsentedPurpose {
   purposeName: string;

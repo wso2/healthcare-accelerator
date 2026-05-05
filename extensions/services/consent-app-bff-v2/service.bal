@@ -17,8 +17,44 @@
 import ballerina/http;
 import ballerina/jwt;
 import ballerina/log;
+import ballerina/url;
 
 listener http:Listener consentBffListener = new (port, {host: hostname});
+
+// Extracts the client_id value from a URL query string (e.g. spQueryParams).
+isolated function extractClientIdFromQueryParams(string queryString) returns string? {
+    string[] pairs = re `&`.split(queryString);
+    foreach string pair in pairs {
+        if pair.startsWith("client_id=") {
+            string encoded = pair.substring(10);
+            string|error decoded = url:decode(encoded, "UTF-8");
+            return decoded is string ? decoded : encoded;
+        }
+    }
+    return ();
+}
+
+// Resolves the effective consent flow for a given client_id.
+// When consentFlow != "auto" the configured value is returned unchanged.
+// Returns "scope", "purpose", or "redirect".
+isolated function resolveEffectiveFlow(string? clientId) returns string {
+    if consentFlow != "auto" {
+        return consentFlow;
+    }
+    if clientId is string {
+        foreach string app in scopeConsentedApps {
+            if app == clientId {
+                return "scope";
+            }
+        }
+        foreach string app in purposeConsentedApps {
+            if app == clientId {
+                return "purpose";
+            }
+        }
+    }
+    return "redirect";
+}
 
 // Calls the IDP with a Bearer token; retries once on 401.
 isolated function callIdp(string path) returns json|error {
@@ -188,7 +224,7 @@ isolated function getScimPatients() returns ConsentPatient[]|error {
 }
 
 // Looks up an existing active consent for the user in OpenFGC.
-isolated function getExistingConsent(string userId) returns ExistingConsentData?|error {
+isolated function getExistingConsent(string userId, string effectiveFlow) returns ExistingConsentData?|error {
     string searchPath = string `/consents?userIds=${userId}&clientIds=${tppClientId}&consentStatuses=ACTIVE,CREATED&limit=1`;
     map<string|string[]> headers = {"org-id": orgId, "TPP-client-id": tppClientId};
 
@@ -214,7 +250,7 @@ isolated function getExistingConsent(string userId) returns ExistingConsentData?
     string consentId = existing.id;
 
     // Scope flow: extract approved scopes from authorizations[0].resources.scopes
-    if consentFlow == "scope" {
+    if effectiveFlow == "scope" {
         string[] approvedScopes = [];
         OpenFGCSearchAuthorization[]? auths = existing.authorizations;
         if auths != () && auths.length() > 0 {
@@ -293,11 +329,11 @@ service /v2 on consentBffListener {
     # + spId - The service provider (application) ID requesting consent
     # + return - Aggregated consent data for the scope or purpose flow, or an error
     isolated resource function get get\-consent\-data(string sessionDataKeyConsent, string spId)
-            returns ScopeConsentData|PurposeConsentData|error {
+            returns ScopeConsentData|PurposeConsentData|RedirectConsentData|error {
 
         log:printDebug("Fetching consent data", sessionDataKeyConsent = sessionDataKeyConsent, spId = spId);
 
-        // Step 1: OauthConsentKey API — get loggedInUser, application, scope
+        // Step 1: OauthConsentKey API — get loggedInUser, application, scope, spQueryParams
         json consentKeyJson = check callIdp(
             string `/api/identity/auth/v1.1/data/OauthConsentKey/${sessionDataKeyConsent}`
         );
@@ -308,13 +344,24 @@ service /v2 on consentBffListener {
         string scopeStr = consentKeyData.scope;
         string mandatoryClaims = consentKeyData.mandatoryClaims ?: "";
 
-        log:printDebug("Consent key resolved", loggedInUser = loggedInUser, application = application, scope = scopeStr);
+        string? clientId = extractClientIdFromQueryParams(consentKeyData.spQueryParams ?: "");
+        string effectiveFlow = resolveEffectiveFlow(clientId);
+        log:printDebug("Consent key resolved", loggedInUser = loggedInUser, application = application,
+            scope = scopeStr, clientId = clientId ?: "(none)", effectiveFlow = effectiveFlow);
+
+        if effectiveFlow == "redirect" {
+            string sdkcEncoded = check url:encode(sessionDataKeyConsent, "UTF-8");
+            string spIdEncoded = check url:encode(spId, "UTF-8");
+            string redirectUrl = string `${defaultIdpConsentPage}?sessionDataKeyConsent=${sdkcEncoded}&spId=${spIdEncoded}`;
+            log:printDebug("Redirecting to default IDP consent page", redirectUrl = redirectUrl);
+            return <RedirectConsentData>{redirectUrl: redirectUrl};
+        }
 
         // Step 2: SCIM user lookup (both flows) + OpenFGC existing consent (if singleConsentPerUser)
         future<ScimUserInfo|error> userFuture = start getScimUser(loggedInUser);
         future<ExistingConsentData?|error>? existingConsentFuture = ();
         if singleConsentPerUser {
-            existingConsentFuture = start getExistingConsent(loggedInUser);
+            existingConsentFuture = start getExistingConsent(loggedInUser, effectiveFlow);
         }
 
         ScimUserInfo scimUserInfo = check wait userFuture;
@@ -347,7 +394,7 @@ service /v2 on consentBffListener {
         };
         string consentToken = check jwt:issue(issuerConfig);
 
-        if consentFlow == "scope" {
+        if effectiveFlow == "scope" {
             // Parse and partition scopes — avoid lambdas capturing module-level state
             string[] allScopes = re ` `.split(scopeStr);
             string[] hiddenScopes = [];
