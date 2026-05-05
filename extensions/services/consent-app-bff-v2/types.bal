@@ -110,7 +110,6 @@ type IdpConsentKeyResponse record {
     string scope;
     string loggedInUser;
     string mandatoryClaims?;
-    string spQueryParams?;
 };
 
 // Internal type returned by getScimUser — includes fhirUser for isPractitioner check.

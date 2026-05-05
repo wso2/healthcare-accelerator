@@ -47,10 +47,10 @@ configurable string scopeConsentElementName = "scope-access";
 # Scopes always approved without user interaction (not shown in UI)
 configurable string[] alwaysAllowedScopes = ["openid"];
 
-# Client IDs that use the scope flow when consentFlow = "auto"
+# spId values that use the scope flow when consentFlow = "auto"
 configurable string[] scopeConsentedApps = [];
 
-# Client IDs that use the purpose flow when consentFlow = "auto"
+# spId values that use the purpose flow when consentFlow = "auto"
 configurable string[] purposeConsentedApps = [];
 
 # Fallback URL when consentFlow = "auto" and client_id is in neither list.

@@ -21,36 +21,21 @@ import ballerina/url;
 
 listener http:Listener consentBffListener = new (port, {host: hostname});
 
-// Extracts the client_id value from a URL query string (e.g. spQueryParams).
-isolated function extractClientIdFromQueryParams(string queryString) returns string? {
-    string[] pairs = re `&`.split(queryString);
-    foreach string pair in pairs {
-        if pair.startsWith("client_id=") {
-            string encoded = pair.substring(10);
-            string|error decoded = url:decode(encoded, "UTF-8");
-            return decoded is string ? decoded : encoded;
-        }
-    }
-    return ();
-}
-
-// Resolves the effective consent flow for a given client_id.
+// Resolves the effective consent flow for a given spId.
 // When consentFlow != "auto" the configured value is returned unchanged.
 // Returns "scope", "purpose", or "redirect".
-isolated function resolveEffectiveFlow(string? clientId) returns string {
+isolated function resolveEffectiveFlow(string spId) returns string {
     if consentFlow != "auto" {
         return consentFlow;
     }
-    if clientId is string {
-        foreach string app in scopeConsentedApps {
-            if app == clientId {
-                return "scope";
-            }
+    foreach string app in scopeConsentedApps {
+        if app == spId {
+            return "scope";
         }
-        foreach string app in purposeConsentedApps {
-            if app == clientId {
-                return "purpose";
-            }
+    }
+    foreach string app in purposeConsentedApps {
+        if app == spId {
+            return "purpose";
         }
     }
     return "redirect";
@@ -333,7 +318,19 @@ service /v2 on consentBffListener {
 
         log:printDebug("Fetching consent data", sessionDataKeyConsent = sessionDataKeyConsent, spId = spId);
 
-        // Step 1: OauthConsentKey API — get loggedInUser, application, scope, spQueryParams
+        // Resolve flow before any IDP call — avoids consuming the consent session for the redirect case.
+        string effectiveFlow = resolveEffectiveFlow(spId);
+        log:printDebug("Effective consent flow", spId = spId, effectiveFlow = effectiveFlow);
+
+        if effectiveFlow == "redirect" {
+            string sdkcEncoded = check url:encode(sessionDataKeyConsent, "UTF-8");
+            string spIdEncoded = check url:encode(spId, "UTF-8");
+            string redirectUrl = string `${defaultIdpConsentPage}?sessionDataKeyConsent=${sdkcEncoded}&spId=${spIdEncoded}`;
+            log:printDebug("Redirecting to default IDP consent page", redirectUrl = redirectUrl);
+            return <RedirectConsentData>{redirectUrl: redirectUrl};
+        }
+
+        // Step 1: OauthConsentKey API — get loggedInUser, application, scope
         json consentKeyJson = check callIdp(
             string `/api/identity/auth/v1.1/data/OauthConsentKey/${sessionDataKeyConsent}`
         );
@@ -344,18 +341,7 @@ service /v2 on consentBffListener {
         string scopeStr = consentKeyData.scope;
         string mandatoryClaims = consentKeyData.mandatoryClaims ?: "";
 
-        string? clientId = extractClientIdFromQueryParams(consentKeyData.spQueryParams ?: "");
-        string effectiveFlow = resolveEffectiveFlow(clientId);
-        log:printDebug("Consent key resolved", loggedInUser = loggedInUser, application = application,
-            scope = scopeStr, clientId = clientId ?: "(none)", effectiveFlow = effectiveFlow);
-
-        if effectiveFlow == "redirect" {
-            string sdkcEncoded = check url:encode(sessionDataKeyConsent, "UTF-8");
-            string spIdEncoded = check url:encode(spId, "UTF-8");
-            string redirectUrl = string `${defaultIdpConsentPage}?sessionDataKeyConsent=${sdkcEncoded}&spId=${spIdEncoded}`;
-            log:printDebug("Redirecting to default IDP consent page", redirectUrl = redirectUrl);
-            return <RedirectConsentData>{redirectUrl: redirectUrl};
-        }
+        log:printDebug("Consent key resolved", loggedInUser = loggedInUser, application = application, scope = scopeStr);
 
         // Step 2: SCIM user lookup (both flows) + OpenFGC existing consent (if singleConsentPerUser)
         future<ScimUserInfo|error> userFuture = start getScimUser(loggedInUser);

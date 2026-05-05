@@ -23,10 +23,10 @@ clientSecret = "<oauth2-client-secret>"   # also used as JWT signing secret
 consentFlow = "scope"
 
 # Only used when consentFlow = "auto"
-# List the OAuth2 client_ids that should use the scope flow
-scopeConsentedApps = ["<client-id-1>", "<client-id-2>"]
-# List the OAuth2 client_ids that should use the purpose flow
-purposeConsentedApps = ["<client-id-3>"]
+# List the spId values that should use the scope flow
+scopeConsentedApps = ["<spId-1>", "<spId-2>"]
+# List the spId values that should use the purpose flow
+purposeConsentedApps = ["<spId-3>"]
 # Fallback URL for client_ids not in either list — sessionDataKeyConsent and spId are appended
 defaultIdpConsentPage = "https://localhost:9443/authenticationendpoint/oauth2_consent.do"
 
