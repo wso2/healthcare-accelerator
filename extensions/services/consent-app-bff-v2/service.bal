@@ -452,8 +452,11 @@ service /v2 on consentBffListener {
             if patients.length() > 0 {
                 scopeData.patients = patients;
             }
-            if existingConsentInfo != () && existingConsentInfo.approvedScopes.length() > 0 {
-                scopeData.previouslyApprovedScopes = existingConsentInfo.approvedScopes;
+            if existingConsentInfo != () {
+                scopeData.existingConsentId = existingConsentInfo.consentId;
+                if existingConsentInfo.approvedScopes.length() > 0 {
+                    scopeData.previouslyApprovedScopes = existingConsentInfo.approvedScopes;
+                }
             }
 
             return scopeData;
@@ -599,16 +602,31 @@ service /v2 on consentBffListener {
             req.addHeader("org-id", orgId);
             req.addHeader("TPP-client-id", tppClientId);
 
-            log:printDebug("[OpenFGC] POST scope consent request", payload = payload.toJson().toJsonString());
-            http:Response consentResp = check openfgcClient->post("/consents", req);
-            log:printDebug("[OpenFGC] POST scope consent response", statusCode = consentResp.statusCode);
-            if consentResp.statusCode != http:STATUS_CREATED {
-                string|error consentBody = consentResp.getTextPayload();
-                string consentBodyStr = consentBody is string ? consentBody : "";
-                log:printError("OpenFGC scope consent creation failed", statusCode = consentResp.statusCode, body = consentBodyStr);
-                return error(string `OpenFGC consent creation failed: HTTP ${consentResp.statusCode}: ${consentBodyStr}`);
+            log:printDebug("[OpenFGC] POST/PUT scope consent request", payload = payload.toJson().toJsonString());
+            string? existingScopeId = singleConsentPerUser ? submission.existingConsentId : ();
+            if existingScopeId != () {
+                log:printDebug("[OpenFGC] PUT scope consent (update)", consentId = existingScopeId);
+                http:Response updateResp = check openfgcClient->put(string `/consents/${existingScopeId}`, req);
+                log:printDebug("[OpenFGC] PUT scope consent response", statusCode = updateResp.statusCode);
+                if updateResp.statusCode != http:STATUS_OK {
+                    string|error updateBody = updateResp.getTextPayload();
+                    string updateBodyStr = updateBody is string ? updateBody : "";
+                    log:printError("OpenFGC scope consent update failed", statusCode = updateResp.statusCode, body = updateBodyStr);
+                    return error(string `OpenFGC consent update failed: HTTP ${updateResp.statusCode}: ${updateBodyStr}`);
+                }
+                log:printDebug("Scope consent updated in OpenFGC", consentId = existingScopeId);
+            } else {
+                log:printDebug("[OpenFGC] POST scope consent (create)");
+                http:Response consentResp = check openfgcClient->post("/consents", req);
+                log:printDebug("[OpenFGC] POST scope consent response", statusCode = consentResp.statusCode);
+                if consentResp.statusCode != http:STATUS_CREATED {
+                    string|error consentBody = consentResp.getTextPayload();
+                    string consentBodyStr = consentBody is string ? consentBody : "";
+                    log:printError("OpenFGC scope consent creation failed", statusCode = consentResp.statusCode, body = consentBodyStr);
+                    return error(string `OpenFGC consent creation failed: HTTP ${consentResp.statusCode}: ${consentBodyStr}`);
+                }
+                log:printDebug("Scope consent stored in OpenFGC");
             }
-            log:printDebug("Scope consent stored in OpenFGC");
 
         } else if consentedPurposes != () {
             // Purpose flow: store element-level approvals

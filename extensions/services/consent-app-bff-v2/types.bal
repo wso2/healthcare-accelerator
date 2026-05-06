@@ -67,6 +67,7 @@ type ScopeConsentData record {|
     string[] scopes;
     string[] hiddenScopes;
     string mandatoryClaims;
+    string existingConsentId?;
     string[] previouslyApprovedScopes?;
     string consentToken;
 |};

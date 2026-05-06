@@ -127,6 +127,7 @@ export default function ScopeConsentPage({ data, selectedPatient }: Props) {
         approved: true,
         approvedScopes,
         hiddenScopes,
+        ...(data.existingConsentId ? { existingConsentId: data.existingConsentId } : {}),
       });
       submitIdpForm(sessionDataKeyConsent, 'approve', {
         claims,

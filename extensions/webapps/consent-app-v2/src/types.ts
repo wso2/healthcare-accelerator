@@ -42,6 +42,7 @@ export interface ScopeConsentData {
   scopes: string[];
   hiddenScopes: string[];
   mandatoryClaims: string;
+  existingConsentId?: string;
   previouslyApprovedScopes?: string[];
   consentToken: string;
 }
@@ -80,6 +81,7 @@ export interface SubmitScopeConsentPayload {
   approved: boolean;
   approvedScopes?: string[];
   hiddenScopes?: string[];
+  existingConsentId?: string;
 }
 
 export interface SubmitPurposeConsentPayload {
