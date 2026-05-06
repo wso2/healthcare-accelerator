@@ -15,7 +15,9 @@
 // under the License.
 
 import ballerina/http;
+import ballerina/log;
 import ballerina/oauth2;
+import ballerina/url;
 
 function buildIdpClientConfig() returns http:ClientConfiguration {
     http:ClientConfiguration config = {};
@@ -30,6 +32,72 @@ function buildIdpClientConfig() returns http:ClientConfiguration {
 // Plain HTTP clients — auth headers are set manually so 401s can be intercepted.
 final http:Client idpClient = check new (idpBaseUrl, buildIdpClientConfig());
 final http:Client openfgcClient = check new (openfgcBaseUrl);
+
+// In-memory cache of consent purposes fetched from OpenFGC at startup.
+// Keyed by purpose name. Populated by fetchAndCachePurposes() in init().
+isolated map<CachedPurpose> purposeCache = {};
+
+// Fetches all configured purpose definitions from OpenFGC and stores them in
+// purposeCache. Called once at module init — fails hard if any purpose is missing.
+function fetchAndCachePurposes() returns error? {
+    // Collect all distinct purpose names: scope purpose + all purpose-flow purposes
+    string[] namesToFetch = [scopeConsent.purposeName];
+    foreach PurposeConsentConfig p in purposeConsent {
+        boolean alreadyAdded = false;
+        foreach string n in namesToFetch {
+            if n == p.purposeName {
+                alreadyAdded = true;
+                break;
+            }
+        }
+        if !alreadyAdded {
+            namesToFetch.push(p.purposeName);
+        }
+    }
+
+    map<string|string[]> headers = {"org-id": orgId, "TPP-client-id": tppClientId};
+
+    foreach string name in namesToFetch {
+        string encodedName = check url:encode(name, "UTF-8");
+        string path = string `/consent-purposes?name=${encodedName}&clientIds=${tppClientId}`;
+        log:printDebug("[OpenFGC] Fetching consent purpose at startup", purposeName = name);
+
+        http:Response resp = check openfgcClient->get(path, headers);
+        if resp.statusCode != http:STATUS_OK {
+            string|error body = resp.getTextPayload();
+            string bodyStr = body is string ? body : "";
+            return error(string `Failed to fetch consent purpose '${name}': HTTP ${resp.statusCode}: ${bodyStr}`);
+        }
+
+        json purposesJson = check resp.getJsonPayload();
+        OpenFGCConsentPurposesResponse purposesResp = check purposesJson.cloneWithType();
+
+        if purposesResp.data.length() == 0 {
+            return error(string `Consent purpose '${name}' not found in OpenFGC`);
+        }
+
+        OpenFGCConsentPurpose fetched = purposesResp.data[0];
+        string[] elementNames = [];
+        boolean anyMandatory = false;
+        foreach OpenFGCPurposeElement e in fetched.elements {
+            elementNames.push(e.name);
+            if e.isMandatory {
+                anyMandatory = true;
+            }
+        }
+
+        CachedPurpose cached = {
+            name: fetched.name,
+            description: fetched.description,
+            elementNames: elementNames.cloneReadOnly(),
+            anyMandatory: anyMandatory
+        };
+        lock {
+            purposeCache[name] = cached;
+        }
+        log:printDebug("[OpenFGC] Consent purpose cached", purposeName = name, elementCount = elementNames.length());
+    }
+}
 
 // Resolves EHR launch context from the configured URL.
 // Returns () if ehrContextResolveUrl is not configured or context not found.

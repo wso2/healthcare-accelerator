@@ -18,14 +18,39 @@
 
 type ScopeConsentConfig record {|
     string purposeName = "SMART Scope Authorization";
-    string elementName = "scope-access";
 |};
 
+// Only the purpose name is configured here — description, mandatory flag, and
+// elements are fetched from OpenFGC at startup via /consent-purposes.
 type PurposeConsentConfig record {|
+    string purposeName;
+|};
+
+// ─── OpenFGC /consent-purposes response types ─────────────────────────────────
+
+type OpenFGCPurposeElement record {
+    string name;
+    boolean isMandatory;
+};
+
+type OpenFGCConsentPurpose record {
+    string id?;
     string name;
     string description?;
-    boolean mandatory = false;
-    string[] elements;
+    OpenFGCPurposeElement[] elements;
+};
+
+type OpenFGCConsentPurposesResponse record {
+    OpenFGCConsentPurpose[] data;
+};
+
+// In-memory representation of a purpose fetched from OpenFGC at startup.
+// readonly so it can be transferred into/out of isolated lock blocks without cloning.
+type CachedPurpose readonly & record {|
+    string name;
+    string description?;
+    string[] elementNames;
+    boolean anyMandatory;
 |};
 
 // ─── Shared response types ────────────────────────────────────────────────────

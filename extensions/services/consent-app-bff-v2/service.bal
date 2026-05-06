@@ -21,6 +21,11 @@ import ballerina/url;
 
 listener http:Listener consentBffListener = new (port, {host: hostname});
 
+function init() returns error? {
+    check fetchAndCachePurposes();
+    log:printInfo("Consent purpose cache initialized successfully");
+}
+
 // Resolves the effective consent flow for a given spId.
 // When consentFlow != "auto" the configured value is returned unchanged.
 // Returns "scope", "purpose", or "redirect".
@@ -274,23 +279,25 @@ isolated function getExistingConsent(string userId, string effectiveFlow) return
                 if showConsentElements {
                     consentedPurposeNames.push(p.name);
                 } else {
-                    // Purpose-only mode: only pre-check if ALL configured elements were approved
+                    // Purpose-only mode: only pre-check if ALL cached elements were approved
                     boolean allApproved = true;
-                    foreach PurposeConsentConfig cp in purposeConsent {
-                        if cp.name == p.name {
-                            foreach string configEl in cp.elements {
-                                boolean found = false;
-                                foreach string approvedEl in approvedElems {
-                                    if approvedEl == configEl {
-                                        found = true;
-                                        break;
-                                    }
-                                }
-                                if !found {
-                                    allApproved = false;
-                                    break;
-                                }
+                    string[] configElements = [];
+                    lock {
+                        CachedPurpose? cp = purposeCache[p.name];
+                        if cp != () {
+                            configElements = cp.elementNames.clone();
+                        }
+                    }
+                    foreach string configEl in configElements {
+                        boolean found = false;
+                        foreach string approvedEl in approvedElems {
+                            if approvedEl == configEl {
+                                found = true;
+                                break;
                             }
+                        }
+                        if !found {
+                            allApproved = false;
                             break;
                         }
                     }
@@ -465,12 +472,22 @@ service /v2 on consentBffListener {
             // Purpose flow
             ConsentPurpose[] purposeList = [];
             foreach PurposeConsentConfig p in purposeConsent {
-                string? desc = p.description;
+                string[] elementNames = [];
+                string? description = ();
+                boolean mandatory = false;
+                lock {
+                    CachedPurpose? cached = purposeCache[p.purposeName];
+                    if cached != () {
+                        elementNames = cached.elementNames.clone();
+                        description = cached.description;
+                        mandatory = !showConsentElements && cached.anyMandatory;
+                    }
+                }
                 purposeList.push({
-                    purposeName: p.name,
-                    mandatory: p.mandatory,
-                    purposeDescription: desc == () || desc == "" ? () : desc,
-                    elements: showConsentElements ? p.elements : []
+                    purposeName: p.purposeName,
+                    mandatory: mandatory,
+                    purposeDescription: description,
+                    elements: showConsentElements ? elementNames : []
                 });
             }
 
@@ -582,11 +599,19 @@ service /v2 on consentBffListener {
                 }
             }
 
+            string scopeElementName = "scope-access";
+            lock {
+                CachedPurpose? cached = purposeCache[scopeConsent.purposeName];
+                if cached != () && cached.elementNames.length() > 0 {
+                    scopeElementName = cached.elementNames[0];
+                }
+            }
+
             OpenFGCConsentCreatePayload payload = {
                 'type: consentType,
                 purposes: [{
                     name: scopeConsent.purposeName,
-                    elements: [{name: scopeConsent.elementName, isUserApproved: true}]
+                    elements: [{name: scopeElementName, isUserApproved: true}]
                 }],
                 authorizations: [{
                     userId: trustedUser,
@@ -633,7 +658,15 @@ service /v2 on consentBffListener {
             OpenFGCConsentPurposeItem[] purposeItems = [];
             foreach PurposeConsentConfig purposeConfig in purposeConsent {
                 OpenFGCConsentElementApproval[] elements = [];
-                string purposeName = purposeConfig.name;
+                string purposeName = purposeConfig.purposeName;
+
+                string[] cachedElementNames = [];
+                lock {
+                    CachedPurpose? cached = purposeCache[purposeName];
+                    if cached != () {
+                        cachedElementNames = cached.elementNames.clone();
+                    }
+                }
 
                 if showConsentElements {
                     string[] approvedElementNames = [];
@@ -643,7 +676,7 @@ service /v2 on consentBffListener {
                             break;
                         }
                     }
-                    foreach string elName in purposeConfig.elements {
+                    foreach string elName in cachedElementNames {
                         boolean isApproved = false;
                         foreach string approvedEl in approvedElementNames {
                             if approvedEl == elName {
@@ -661,12 +694,12 @@ service /v2 on consentBffListener {
                             break;
                         }
                     }
-                    foreach string elName in purposeConfig.elements {
+                    foreach string elName in cachedElementNames {
                         elements.push({name: elName, isUserApproved: purposeConsented});
                     }
                 }
 
-                purposeItems.push({name: purposeConfig.name, elements: elements});
+                purposeItems.push({name: purposeConfig.purposeName, elements: elements});
             }
 
             OpenFGCConsentCreatePayload payload = {

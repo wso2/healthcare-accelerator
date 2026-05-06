@@ -40,21 +40,12 @@ alwaysAllowedScopes = ["openid"]
 singleConsentPerUser = false
 showConsentElements = true
 
-# Scope flow: OpenFGC wrapper names (defaults shown — override only if needed)
+# Scope flow: which OpenFGC purpose wraps SMART scopes (element name is fetched from OpenFGC at startup)
 [scopeConsent]
 purposeName = "SMART Scope Authorization"
-elementName  = "scope-access"
 
-# Purpose flow: define one or more [[purposeConsent]] blocks
+# Purpose flow: one [[purposeConsent]] entry per purpose shown in the consent UI.
+# description, mandatory flag, and elements are fetched from OpenFGC at startup.
+# The service fails to start if any listed purpose is not found in OpenFGC.
 [[purposeConsent]]
-name = "All Health Data Access"
-description = "Access your health data related to USCDI."
-mandatory = false
-elements = [
-    "MedicationDispense", "Coverage", "CareTeam", "RelatedPerson", "DiagnosticReport",
-    "PractitionerRole", "Goal", "MedicationRequest", "Location", "CarePlan",
-    "Provenance", "Patient", "Observation", "Condition", "ServiceRequest",
-    "QuestionnaireResponse", "Medication", "Immunization", "Specimen", "Procedure",
-    "Practitioner", "Organization", "Device", "AllergyIntolerance", "DocumentReference",
-    "Encounter"
-]
+purposeName = "All Health Data Access"

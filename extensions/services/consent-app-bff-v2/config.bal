@@ -61,19 +61,7 @@ configurable boolean singleConsentPerUser = false;
 configurable boolean showConsentElements = true;
 
 configurable PurposeConsentConfig[] purposeConsent = [
-    {
-        name: "All Health Data Access",
-        description: "Access your health data related to USCDI.",
-        mandatory: false,
-        elements: [
-            "MedicationDispense", "Coverage", "CareTeam", "RelatedPerson", "DiagnosticReport",
-            "PractitionerRole", "Goal", "MedicationRequest", "Location", "CarePlan",
-            "Provenance", "Patient", "Observation", "Condition", "ServiceRequest",
-            "QuestionnaireResponse", "Medication", "Immunization", "Specimen", "Procedure",
-            "Practitioner", "Organization", "Device", "AllergyIntolerance", "DocumentReference",
-            "Encounter"
-        ]
-    }
+    {purposeName: "All Health Data Access"}
 ];
 
 configurable string consentContextApiTrustStorePath = "";
