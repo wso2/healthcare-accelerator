@@ -38,11 +38,8 @@ configurable string orgId = ?;
 configurable string tppClientId = ?;
 configurable string consentType = ?;
 
-# Purpose name used when wrapping scope-based consent in OpenFGC
-configurable string scopeConsentPurposeName = "SMART Scope Authorization";
-
-# Element name used within the scope consent purpose
-configurable string scopeConsentElementName = "scope-access";
+# Scope flow: OpenFGC wrapper names
+configurable ScopeConsentConfig scopeConsent = {};
 
 # Scopes always approved without user interaction (not shown in UI)
 configurable string[] alwaysAllowedScopes = ["openid"];
@@ -63,7 +60,7 @@ configurable boolean singleConsentPerUser = false;
 # When true, show individual elements per purpose in the consent UI
 configurable boolean showConsentElements = true;
 
-configurable ConsentPurposeConfig[] consentPurpose = [
+configurable PurposeConsentConfig[] purposeConsent = [
     {
         name: "All Health Data Access",
         description: "Access your health data related to USCDI.",

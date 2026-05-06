@@ -16,7 +16,12 @@
 
 // ─── Config types ────────────────────────────────────────────────────────────
 
-type ConsentPurposeConfig record {|
+type ScopeConsentConfig record {|
+    string purposeName = "SMART Scope Authorization";
+    string elementName = "scope-access";
+|};
+
+type PurposeConsentConfig record {|
     string name;
     string description?;
     boolean mandatory = false;

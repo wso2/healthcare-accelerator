@@ -35,16 +35,18 @@ orgId = "<openfgc-org-id>"
 tppClientId = "<openfgc-tpp-client-id>"
 consentType = "smart-consent"
 
-# Scope flow specific
-scopeConsentPurposeName = "SMART Scope Authorization"
-scopeConsentElementName = "scope-access"
 alwaysAllowedScopes = ["openid"]
 
 singleConsentPerUser = false
 showConsentElements = true
 
-# Purpose flow: define one or more [[consentPurpose]] blocks
-[[consentPurpose]]
+# Scope flow: OpenFGC wrapper names (defaults shown — override only if needed)
+[scopeConsent]
+purposeName = "SMART Scope Authorization"
+elementName  = "scope-access"
+
+# Purpose flow: define one or more [[purposeConsent]] blocks
+[[purposeConsent]]
 name = "All Health Data Access"
 description = "Access your health data related to USCDI."
 mandatory = false

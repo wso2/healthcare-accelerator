@@ -276,7 +276,7 @@ isolated function getExistingConsent(string userId, string effectiveFlow) return
                 } else {
                     // Purpose-only mode: only pre-check if ALL configured elements were approved
                     boolean allApproved = true;
-                    foreach ConsentPurposeConfig cp in consentPurpose {
+                    foreach PurposeConsentConfig cp in purposeConsent {
                         if cp.name == p.name {
                             foreach string configEl in cp.elements {
                                 boolean found = false;
@@ -461,7 +461,7 @@ service /v2 on consentBffListener {
         } else {
             // Purpose flow
             ConsentPurpose[] purposeList = [];
-            foreach ConsentPurposeConfig p in consentPurpose {
+            foreach PurposeConsentConfig p in purposeConsent {
                 string? desc = p.description;
                 purposeList.push({
                     purposeName: p.name,
@@ -582,8 +582,8 @@ service /v2 on consentBffListener {
             OpenFGCConsentCreatePayload payload = {
                 'type: consentType,
                 purposes: [{
-                    name: scopeConsentPurposeName,
-                    elements: [{name: scopeConsentElementName, isUserApproved: true}]
+                    name: scopeConsent.purposeName,
+                    elements: [{name: scopeConsent.elementName, isUserApproved: true}]
                 }],
                 authorizations: [{
                     userId: trustedUser,
@@ -613,7 +613,7 @@ service /v2 on consentBffListener {
         } else if consentedPurposes != () {
             // Purpose flow: store element-level approvals
             OpenFGCConsentPurposeItem[] purposeItems = [];
-            foreach ConsentPurposeConfig purposeConfig in consentPurpose {
+            foreach PurposeConsentConfig purposeConfig in purposeConsent {
                 OpenFGCConsentElementApproval[] elements = [];
                 string purposeName = purposeConfig.name;
 
