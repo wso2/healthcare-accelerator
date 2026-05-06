@@ -106,21 +106,31 @@ export default function ScopeConsentPage({ data, selectedPatient }: Props) {
     setChecked(Object.fromEntries(selectableScopes.map((s) => [s, val])));
   }, [selectableScopes]);
 
+  const patientScope = (() => {
+    if (!selectedPatient?.fhirUser) return null;
+    const fhirUser = selectedPatient.fhirUser;
+    const patientId = fhirUser.startsWith('Patient/') ? fhirUser.slice('Patient/'.length) : fhirUser;
+    return patientId ? `OH_patient/${patientId}` : null;
+  })();
+
   const handleApprove = async () => {
     setSubmitting('approve');
     setSubmitError(null);
+    const approvedScopes = patientScope
+      ? [...selectedScopes, patientScope]
+      : selectedScopes;
     try {
       await submitConsent({
         consentToken,
         sessionDataKeyConsent,
         spId,
         approved: true,
-        approvedScopes: selectedScopes,
+        approvedScopes,
         hiddenScopes,
       });
       submitIdpForm(sessionDataKeyConsent, 'approve', {
         claims,
-        scopes: [...selectedScopes, ...hiddenScopes],
+        scopes: [...approvedScopes, ...hiddenScopes],
       });
     } catch (err) {
       console.error('Failed to submit consent', err);

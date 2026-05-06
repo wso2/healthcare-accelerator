@@ -111,7 +111,7 @@ function ConsentRoute() {
     if (scopeData.scopes.length === 0) {
       return <AutoApproveScopePage sessionDataKeyConsent={sessionDataKeyConsent} />;
     }
-    if (scopeData.isPractitioner && !selectedPatient) {
+    if (scopeData.isPractitioner && !selectedPatient && (scopeData.patients?.length ?? 0) > 0) {
       return (
         <PatientPickerPage
           patients={scopeData.patients ?? []}

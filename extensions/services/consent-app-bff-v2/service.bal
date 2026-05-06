@@ -66,18 +66,14 @@ isolated function callIdp(string path) returns json|error {
     return result;
 }
 
-// Extracts fhirUser from a SCIM resource JSON map — tries enterprise extension then WSO2 schema.
+// Extracts fhirUser from a SCIM resource JSON map using the custom schema extension.
 isolated function extractFhirUserFromMap(map<json> resourceMap) returns string {
-    json enterpriseExt = resourceMap["urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"] ?: {};
-    if enterpriseExt is map<json> {
-        string fhirUser = (enterpriseExt["fhirUser"] ?: "").toString();
-        if fhirUser != "" {
+    json customSchema = resourceMap["urn:scim:schemas:extension:custom:User"] ?: {};
+    if customSchema is map<json> {
+        json fhirUser = customSchema[fhirUserAttributeName] ?: "";
+        if fhirUser is string && fhirUser != "" {
             return fhirUser;
         }
-    }
-    json wso2Schema = resourceMap["urn:scim:wso2:schema"] ?: {};
-    if wso2Schema is map<json> {
-        return (wso2Schema["fhirUser"] ?: "").toString();
     }
     return "";
 }
@@ -154,7 +150,7 @@ isolated function getScimPatients() returns ConsentPatient[]|error {
 
     json searchPayload = {
         "schemas": ["urn:ietf:params:scim:api:messages:2.0:SearchRequest"],
-        "filter": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User.fhirUser co Patient",
+        "filter": string `urn:scim:schemas:extension:custom:User.${fhirUserAttributeName} co Patient`,
         "startIndex": 1,
         "count": 100
     };
@@ -191,16 +187,26 @@ isolated function getScimPatients() returns ConsentPatient[]|error {
         }
         string fhirUser = extractFhirUserFromMap(r);
         string? mrn = ();
-        json wso2Schema = r["urn:scim:wso2:schema"] ?: {};
-        if wso2Schema is map<json> {
-            string mrnVal = (wso2Schema["mrn"] ?: "").toString();
+        json customSchema = r["urn:scim:schemas:extension:custom:User"] ?: {};
+        if customSchema is map<json> {
+            string mrnVal = (customSchema["mrn"] ?: "").toString();
             if mrnVal != "" {
                 mrn = mrnVal;
             }
         }
+        string patientName = "";
+        json nameField = r["name"] ?: {};
+        if nameField is map<json> {
+            string given = (nameField["givenName"] ?: "").toString();
+            string family = (nameField["familyName"] ?: "").toString();
+            patientName = (given + " " + family).trim();
+        }
+        if patientName == "" {
+            patientName = (r["userName"] ?: r["id"] ?: "").toString();
+        }
         patients.push({
             id: (r["id"] ?: "").toString(),
-            name: (r["displayName"] ?: "").toString(),
+            name: patientName,
             fhirUser: fhirUser,
             mrn: mrn
         });
@@ -339,6 +345,7 @@ service /v2 on consentBffListener {
         string loggedInUser = consentKeyData.loggedInUser;
         string application = consentKeyData.application;
         string scopeStr = consentKeyData.scope;
+        string launchId = extractQueryParam(consentKeyData.spQueryParams ?: "", "launch");
         string mandatoryClaims = consentKeyData.mandatoryClaims ?: "";
 
         log:printDebug("Consent key resolved", loggedInUser = loggedInUser, application = application, scope = scopeStr);
@@ -390,7 +397,7 @@ service /v2 on consentBffListener {
                 if s == "" {
                     continue;
                 }
-                if s.startsWith("OH_launch/") {
+                if s.startsWith("OH_") {
                     hiddenScopes.push(s);
                     continue;
                 }
@@ -406,9 +413,27 @@ service /v2 on consentBffListener {
                 }
             }
 
-            // Step 3: SCIM patient search if user is a practitioner
+            // If the launch context already carries a patient, skip the patient picker
+            boolean launchHasPatient = false;
+            if launchId != "" {
+                EhrLaunchContext?|error launchCtxResult = resolveLaunchContext(launchId);
+                if launchCtxResult is EhrLaunchContext {
+                    string? launchPatientId = launchCtxResult.patientId;
+                    if launchPatientId is string && launchPatientId != "" {
+                        launchHasPatient = true;
+                        hiddenScopes.push(string `OH_patient/${launchPatientId}`);
+                        log:printDebug("[EHR] Patient resolved from launch context — skipping patient picker",
+                            patientId = launchPatientId);
+                    }
+                } else if launchCtxResult is error {
+                    log:printError("[EHR] Failed to resolve launch context", launchId = launchId,
+                        'error = launchCtxResult);
+                }
+            }
+
+            // Step 3: SCIM patient search only if practitioner and no patient from launch context
             ConsentPatient[] patients = [];
-            if isPractitioner {
+            if isPractitioner && !launchHasPatient {
                 patients = check getScimPatients();
             }
 
@@ -531,6 +556,29 @@ service /v2 on consentBffListener {
                 }
             }
 
+            // Resolve EHR launch context and add OH_patient / OH_encounter as approved scopes
+            foreach string s in (hiddenScopes ?: []) {
+                if s.startsWith("OH_launch/") && s.length() > 10 {
+                    string launchId = s.substring(10);
+                    EhrLaunchContext?|error launchCtxResult = resolveLaunchContext(launchId);
+                    if launchCtxResult is EhrLaunchContext {
+                        string? patientId = launchCtxResult.patientId;
+                        string? encounterId = launchCtxResult.encounterId;
+                        if patientId is string && patientId != "" {
+                            scopesToStore.push(string `OH_patient/${patientId}`);
+                            log:printDebug("[EHR] Added patient scope from launch context", patientId = patientId);
+                        }
+                        if encounterId is string && encounterId != "" {
+                            scopesToStore.push(string `OH_encounter/${encounterId}`);
+                            log:printDebug("[EHR] Added encounter scope from launch context", encounterId = encounterId);
+                        }
+                    } else if launchCtxResult is error {
+                        log:printError("[EHR] Failed to resolve launch context", launchId = launchId, 'error = launchCtxResult);
+                    }
+                    break;
+                }
+            }
+
             OpenFGCConsentCreatePayload payload = {
                 'type: consentType,
                 purposes: [{
@@ -649,4 +697,24 @@ service /v2 on consentBffListener {
 
         return {status: "success", message: "Consent approved successfully"};
     }
+}
+
+// Extracts a single query parameter value from a URL-encoded query string.
+isolated function extractQueryParam(string queryString, string key) returns string {
+    if queryString == "" {
+        return "";
+    }
+    foreach string pair in re `&`.split(queryString) {
+        int? eqIdx = pair.indexOf("=");
+        if eqIdx is () {
+            continue;
+        }
+        string pKey = pair.substring(0, eqIdx);
+        string pVal = pair.substring(eqIdx + 1);
+        if pKey == key {
+            string|error decoded = url:decode(pVal, "UTF-8");
+            return decoded is string ? decoded : pVal;
+        }
+    }
+    return "";
 }

@@ -78,3 +78,11 @@ configurable ConsentPurposeConfig[] consentPurpose = [
         ]
     }
 ];
+
+configurable string consentContextApiTrustStorePath = "";
+configurable string consentContextApiTrustStorePassword = "";
+
+configurable string fhirUserAttributeName = "fhirUser";
+
+# EHR launch context resolve endpoint (leave empty to disable)
+configurable string ehrContextResolveUrl = "";
