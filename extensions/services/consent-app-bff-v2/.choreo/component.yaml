@@ -16,7 +16,7 @@
 
 schemaVersion: 1.2
 endpoints:
-  - name: ConsentAppBFF
+  - name: consentAppBFF
     displayName: Consent App BFF
     service:
       basePath: /v2
