@@ -171,9 +171,7 @@ export default function ScopeConsentPage({ data, selectedPatient }: Props) {
           Authorize Access
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
-          {data.isPractitioner && selectedPatient
-            ? `Authorizing as ${user.displayName} for patient ${selectedPatient.name}`
-            : `Signed in as ${user.displayName}${user.email ? ` (${user.email})` : ''}`}
+          Signed in as {user.displayName}{user.email ? ` (${user.email})` : ''}
         </Typography>
 
         {/* Mandatory claims */}

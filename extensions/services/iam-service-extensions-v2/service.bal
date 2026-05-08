@@ -19,10 +19,10 @@ listener http:Listener httpListener = new (port, config = {host: hostname});
 
 final string:RegExp scopeRegex = re `^(patient|user|system)/(\*|[A-Za-z]*)\.(cruds|c?r?u?d?s?)$`;
 
-service /pre\-issue\-access\-token on httpListener {
+service / on httpListener {
 
     # + return - InlineResponse200Ok|ErrorResponseBadRequest|ErrorResponseInternalServerError|error
-    isolated resource function post .(@http:Payload json payload)
+    isolated resource function post pre\-issue\-access\-token(@http:Payload json payload)
             returns InlineResponse200Ok|ErrorResponseBadRequest|ErrorResponseInternalServerError|error {
 
         RequestBody reqBody = check payload.cloneWithType();
@@ -199,6 +199,59 @@ service /pre\-issue\-access\-token on httpListener {
         log:printDebug(string `[${flowId}] final claims`, resolvedConsentId = resolvedConsentId ?: "(none)", resolvedPatientId = resolvedPatientId ?: "(none)", resolvedEncounterId = resolvedEncounterId ?: "(none)");
         log:printDebug(string `[${flowId}] returning SUCCESS`, operationCount = ops.length());
         return <InlineResponse200Ok>{body: {actionStatus: "SUCCESS", operations: ops}};
+    }
+
+    # Adds fhirUser as an ID token claim when the fhirUser scope is requested.
+    # + return - InlineResponse200Ok|ErrorResponseBadRequest|ErrorResponseInternalServerError
+    isolated resource function post pre\-issue\-id\-token(@http:Payload json payload)
+            returns InlineResponse200Ok|ErrorResponseBadRequest|ErrorResponseInternalServerError {
+
+        IdTokenRequestBody|error reqBodyResult = payload.cloneWithType();
+        if reqBodyResult is error {
+            return <ErrorResponseBadRequest>{
+                body: {actionStatus: "ERROR", errorMessage: "Invalid payload", errorDescription: reqBodyResult.message()}
+            };
+        }
+        IdTokenRequestBody reqBody = reqBodyResult;
+        string flowId = reqBody.flowId ?: "";
+        log:printDebug(string `[${flowId}] pre-issue-id-token received`, payload = payload.toJsonString());
+
+        string[]? tokenScopes = reqBody.event.request.scopes;
+        boolean fhirUserScopeRequested = false;
+        if tokenScopes is string[] {
+            fhirUserScopeRequested = tokenScopes.indexOf("fhirUser") != ();
+        }
+
+        if !fhirUserScopeRequested {
+            log:printDebug(string `[${flowId}] fhirUser scope not requested — no ID token claims added`);
+            return <InlineResponse200Ok>{body: {actionStatus: "SUCCESS", operations: []}};
+        }
+
+        string? userId = reqBody.event.user?.id;
+        if !(userId is string) || userId == "" {
+            log:printDebug(string `[${flowId}] no user ID in payload — skipping fhirUser claim`);
+            return <InlineResponse200Ok>{body: {actionStatus: "SUCCESS", operations: []}};
+        }
+
+        json|error scimUser = fetchScimUser(userId);
+        if scimUser is error {
+            log:printWarn(string `[${flowId}]: SCIM user lookup failed: ${scimUser.message()}`);
+            return <InlineResponse200Ok>{body: {actionStatus: "SUCCESS", operations: []}};
+        }
+
+        string? fhirUser = scimUser is map<json> ? getFhirUserFromScim(scimUser) : ();
+        if !(fhirUser is string) || fhirUser == "" {
+            log:printDebug(string `[${flowId}] no fhirUser attribute on SCIM user — skipping claim`);
+            return <InlineResponse200Ok>{body: {actionStatus: "SUCCESS", operations: []}};
+        }
+
+        log:printDebug(string `[${flowId}] adding fhirUser ID token claim`, fhirUser = fhirUser);
+        return <InlineResponse200Ok>{
+            body: {
+                actionStatus: "SUCCESS",
+                operations: [{op: "add", path: "/idToken/claims/-", value: {name: "fhirUser", value: fhirUser}}]
+            }
+        };
     }
 }
 
