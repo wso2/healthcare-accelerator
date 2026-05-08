@@ -13,9 +13,8 @@
 // limitations under the License.
 
 import type { ConsentData, SubmitScopeConsentPayload, SubmitPurposeConsentPayload } from './types';
-import { consentBffUrl } from './config';
 
-const BFF_URL = consentBffUrl;
+const BFF_URL = window.config?.CONSENT_BFF_URL || '';
 
 export async function getConsentData(sessionDataKeyConsent: string, spId: string): Promise<ConsentData> {
   const params = new URLSearchParams({ sessionDataKeyConsent, spId });

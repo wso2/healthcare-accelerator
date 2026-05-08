@@ -23,27 +23,36 @@ On load, `App.tsx` calls `GET /v2/get-consent-data`. If the BFF returns `flow = 
 
 ```bash
 npm install
-cp .env.example .env
-# Edit .env
 npm run dev     # dev server at http://localhost:5175
 npm run build   # production build
 ```
 
-### Environment variables
+### Runtime configuration
 
-| Variable | Description |
-|----------|-------------|
-| `VITE_CONSENT_BFF_URL` | BFF base URL. Leave blank to use the Vite dev proxy (`/v2` → `http://localhost:9092`) |
-| `VITE_IDP_AUTHORIZE_URL` | IDP URL for the final form POST after consent is stored. WSO2 IS: `https://localhost:9443/oauth2/authorize`. Asgardeo: `https://api.asgardeo.io/t/<tenant>/oauth2/authorize` |
+Configuration is loaded at runtime from `public/config.js`, which sets values on `window.config`. Edit this file before running or deploying:
+
+```js
+window.config = {
+    CONSENT_BFF_URL: "",           // BFF base URL; leave empty to use relative /v2 path
+    IDP_AUTHORIZE_URL: ""          // IDP authorize URL for the final form POST
+};
+```
+
+| Key | Description |
+|-----|-------------|
+| `CONSENT_BFF_URL` | BFF base URL. Leave blank to use the Vite dev proxy (`/v2` → `http://localhost:9092`) |
+| `IDP_AUTHORIZE_URL` | IDP URL for the final form POST after consent is stored. WSO2 IS: `https://localhost:9443/oauth2/authorize`. Asgardeo: `https://api.asgardeo.io/t/<tenant>/oauth2/authorize` |
+
+For deployment (e.g. Choreo Static Site), mount a customised `config.js` at the web root.
 
 ## Consent submission flow
 
 **Scope flow (Approve):**
 1. `POST /v2/submit-consent` with `approvedScopes` + `hiddenScopes`
-2. On success → form POST to `VITE_IDP_AUTHORIZE_URL` with `consent=approve`, `scope=<scopes>`, `user_claims_consent=true`, and `consent_<id>=approved` for each mandatory claim
+2. On success → form POST to `IDP_AUTHORIZE_URL` with `consent=approve`, `scope=<scopes>`, `user_claims_consent=true`, and `consent_<id>=approved` for each mandatory claim
 
 **Purpose flow (Allow):**
 1. `POST /v2/submit-consent` with `consentedPurposes`
-2. On success → form POST to `VITE_IDP_AUTHORIZE_URL` with `consent=approve`, `scope=<all requested scopes>`, `user_claims_consent=true`, and `consent_<id>=approved` for each mandatory claim
+2. On success → form POST to `IDP_AUTHORIZE_URL` with `consent=approve`, `scope=<all requested scopes>`, `user_claims_consent=true`, and `consent_<id>=approved` for each mandatory claim
 
-**Deny (both flows):** form POST directly to `VITE_IDP_AUTHORIZE_URL` with `consent=deny` — no BFF call.
+**Deny (both flows):** form POST directly to `IDP_AUTHORIZE_URL` with `consent=deny` — no BFF call.

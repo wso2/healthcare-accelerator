@@ -18,9 +18,8 @@ import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
 import { submitConsent } from './api';
 import type { PurposeConsentData, ConsentPurpose } from './types';
-import { idpAuthorizeUrl } from './config';
 
-const IDP_AUTHORIZE_URL = idpAuthorizeUrl;
+const IDP_AUTHORIZE_URL = window.config?.IDP_AUTHORIZE_URL || '';
 
 function parseMandatoryClaims(raw: string): Array<{ id: string }> {
   if (!raw) return [];

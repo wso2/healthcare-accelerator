@@ -13,6 +13,15 @@
 // limitations under the License.
 
 import { createRoot } from 'react-dom/client';
+
+declare global {
+  interface Window {
+    config?: {
+      CONSENT_BFF_URL: string;
+      IDP_AUTHORIZE_URL: string;
+    };
+  }
+}
 import { OxygenUIThemeProvider, AcrylicOrangeTheme } from '@wso2/oxygen-ui';
 import { BrowserRouter } from 'react-router-dom';
 import './index.css';

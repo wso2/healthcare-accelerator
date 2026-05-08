@@ -18,9 +18,8 @@ import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
 import { submitConsent } from './api';
 import type { ScopeConsentData, ConsentPatient } from './types';
-import { idpAuthorizeUrl } from './config';
 
-const IDP_AUTHORIZE_URL = idpAuthorizeUrl;
+const IDP_AUTHORIZE_URL = window.config?.IDP_AUTHORIZE_URL || '';
 
 // Validates SMART on FHIR scope format
 const SMART_REGEX = /^(patient|user|system)\/(\*|[A-Za-z]+)\.(cruds|(?=[cruds]+$)c?r?u?d?s?)$/;

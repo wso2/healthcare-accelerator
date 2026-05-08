@@ -20,9 +20,8 @@ import ScopeConsentPage from './ScopeConsentPage';
 import PurposeConsentPage from './PurposeConsentPage';
 import PatientPickerPage from './PatientPickerPage';
 import type { ConsentData, ConsentPatient, ScopeConsentData, PurposeConsentData, RedirectConsentData } from './types';
-import { idpAuthorizeUrl } from './config';
 
-const IDP_AUTHORIZE_URL = idpAuthorizeUrl;
+const IDP_AUTHORIZE_URL = window.config?.IDP_AUTHORIZE_URL || '';
 
 function AutoApproveScopePage({ sessionDataKeyConsent }: { sessionDataKeyConsent: string }) {
   const submitted = useRef(false);
