@@ -19,7 +19,7 @@ import Snackbar from '@mui/material/Snackbar';
 import { submitConsent } from './api';
 import type { PurposeConsentData, ConsentPurpose } from './types';
 
-const IDP_AUTHORIZE_URL = window.Config?.IDP_AUTHORIZE_URL || '';
+const IDP_AUTHORIZE_URL = window.config?.IDP_AUTHORIZE_URL || '';
 
 function parseMandatoryClaims(raw: string): Array<{ id: string }> {
   if (!raw) return [];
