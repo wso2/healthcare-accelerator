@@ -20,8 +20,9 @@ import ScopeConsentPage from './ScopeConsentPage';
 import PurposeConsentPage from './PurposeConsentPage';
 import PatientPickerPage from './PatientPickerPage';
 import type { ConsentData, ConsentPatient, ScopeConsentData, PurposeConsentData, RedirectConsentData } from './types';
+import { idpAuthorizeUrl } from './config';
 
-const IDP_AUTHORIZE_URL = import.meta.env.VITE_IDP_AUTHORIZE_URL ?? '';
+const IDP_AUTHORIZE_URL = idpAuthorizeUrl;
 
 function AutoApproveScopePage({ sessionDataKeyConsent }: { sessionDataKeyConsent: string }) {
   const submitted = useRef(false);
@@ -119,7 +120,7 @@ function ConsentRoute() {
           onProceed={setSelectedPatient}
           onCancel={() => {
             // Deny: form POST directly to IDP with consent=deny
-            const authorizeUrl = import.meta.env.VITE_IDP_AUTHORIZE_URL ?? '';
+            const authorizeUrl = IDP_AUTHORIZE_URL;
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = authorizeUrl;

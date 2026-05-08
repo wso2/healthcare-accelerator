@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import type { ConsentData, SubmitScopeConsentPayload, SubmitPurposeConsentPayload } from './types';
+import { consentBffUrl } from './config';
 
-const BFF_URL = import.meta.env.VITE_CONSENT_BFF_URL ?? '';
+const BFF_URL = consentBffUrl;
 
 export async function getConsentData(sessionDataKeyConsent: string, spId: string): Promise<ConsentData> {
   const params = new URLSearchParams({ sessionDataKeyConsent, spId });
