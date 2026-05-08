@@ -14,11 +14,13 @@
 
 import type { ConsentData, SubmitScopeConsentPayload, SubmitPurposeConsentPayload } from './types';
 
-const BFF_URL = window.config?.CONSENT_BFF_URL || '';
+// Read lazily at call time so config.js is guaranteed to have run first.
+const bffUrl = () => window.config?.CONSENT_BFF_URL || '';
 
 export async function getConsentData(sessionDataKeyConsent: string, spId: string): Promise<ConsentData> {
+  const base = bffUrl();
   const params = new URLSearchParams({ sessionDataKeyConsent, spId });
-  const url = BFF_URL ? `${BFF_URL}/v2/get-consent-data?${params}` : `/v2/get-consent-data?${params}`;
+  const url = base ? `${base}/v2/get-consent-data?${params}` : `/v2/get-consent-data?${params}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`BFF error: ${res.status}`);
   return res.json() as Promise<ConsentData>;
@@ -27,7 +29,8 @@ export async function getConsentData(sessionDataKeyConsent: string, spId: string
 export async function submitConsent(
   payload: SubmitScopeConsentPayload | SubmitPurposeConsentPayload,
 ): Promise<void> {
-  const url = BFF_URL ? `${BFF_URL}/v2/submit-consent` : '/v2/submit-consent';
+  const base = bffUrl();
+  const url = base ? `${base}/v2/submit-consent` : '/v2/submit-consent';
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
