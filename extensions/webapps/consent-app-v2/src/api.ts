@@ -15,7 +15,7 @@
 import type { ConsentData, SubmitScopeConsentPayload, SubmitPurposeConsentPayload } from './types';
 
 // Read lazily at call time so config.js is guaranteed to have run first.
-const bffUrl = () => window.config?.CONSENT_BFF_URL || '';
+const bffUrl = () => window.Config?.CONSENT_BFF_URL || '';
 
 export async function getConsentData(sessionDataKeyConsent: string, spId: string): Promise<ConsentData> {
   const base = bffUrl();

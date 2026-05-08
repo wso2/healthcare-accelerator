@@ -16,7 +16,7 @@ import { createRoot } from 'react-dom/client';
 
 declare global {
   interface Window {
-    config?: {
+    Config?: {
       CONSENT_BFF_URL: string;
       IDP_AUTHORIZE_URL: string;
     };
