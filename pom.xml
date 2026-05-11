@@ -33,6 +33,7 @@
 
     <modules>
         <module>product-accelerators</module>
+        <module>extensions</module>
         <module>distribution</module>
     </modules>
 

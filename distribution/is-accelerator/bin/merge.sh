@@ -19,6 +19,7 @@
 
 # Initialize variables
 WSO2_OH_IS_HOME=""
+PATCH_MODE=false
 
 # resolve links - $0 may be a softlink
 PRG="$0"
@@ -26,6 +27,9 @@ PRG="$0"
 # Parse arguments
 for arg in "$@"; do
   case $arg in
+    --patch)
+      PATCH_MODE=true
+      ;;
     *)
       if [ -z "$WSO2_OH_IS_HOME" ]; then
         WSO2_OH_IS_HOME="$arg"
@@ -99,6 +103,19 @@ fi
 echo -e "[INFO] Copying WSO2 Healthcare artifacts.."
 # adding the OH artifacts to the product pack
 cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/components/* "${WSO2_OH_IS_HOME}"/repository/components
+
+if [ "${PATCH_MODE}" == "true" ]; then
+  # TODO: remove this once the patched version of org.wso2.carbon.identity.oauth is released in the WSO2 IS product pack
+  # remove the stock identity.oauth jar to avoid class conflicts with the patched version
+  echo -e "[INFO] Removing stock org.wso2.carbon.identity.oauth jar from plugins.."
+  find "${WSO2_OH_IS_HOME}"/repository/components/plugins -maxdepth 1 -name "org.wso2.carbon.identity.oauth_*.jar" -delete
+  echo -e "[INFO] Removed org.wso2.carbon.identity.oauth jar"
+  # adding the temporary IS resources to the product pack until the fixes are available in official pack
+  echo -e "[INFO] Copying temporary IS patch resources.."
+  cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/temp/components/dropins/* "${WSO2_OH_IS_HOME}"/repository/components/dropins
+  cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/temp/components/webapps/* "${WSO2_OH_IS_HOME}"/repository/deployment/server/webapps
+  echo -e "[INFO] Patch resources applied"
+fi
 
 # adding the consent-app webapp
 echo -e "[INFO] Deploying consent-app webapp.."
