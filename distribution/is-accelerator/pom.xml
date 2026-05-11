@@ -168,13 +168,23 @@
                                             includes="**"/>
                                 </copy>
 
+                                <!--Add temporary IS resources until the fixes are available in official pack-->
+                                <copy todir="${product_home}/carbon-home/repository/temp/components/dropins">
+                                    <fileset dir="${basedir}/../../distribution/is-accelerator/resources/repository/temp/components/dropins"
+                                             includes="**"/>
+                                </copy>
+                                <copy todir="${product_home}/carbon-home/repository/temp/deployment/server/webapps">
+                                    <fileset dir="${basedir}/../../distribution/is-accelerator/resources/repository/temp/components/webapps"
+                                             includes="**"/>
+                                </copy>
+
                                 <!--Add consent-app webapp (built dist + WEB-INF only)-->
                                 <copy todir="${product_home}/carbon-home/repository/deployment/server/webapps/consent-app">
-                                    <fileset dir="${basedir}/../../extensions/webapps/consent-app/dist"
+                                    <fileset dir="${basedir}/../../extensions/webapps/consent-app-v2/dist"
                                             includes="**"/>
                                 </copy>
                                 <copy todir="${product_home}/carbon-home/repository/deployment/server/webapps/consent-app/WEB-INF">
-                                    <fileset dir="${basedir}/../../extensions/webapps/consent-app/WEB-INF"
+                                    <fileset dir="${basedir}/../../extensions/webapps/consent-app-v2/WEB-INF"
                                             includes="web.xml"/>
                                 </copy>
 
