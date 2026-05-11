@@ -39,12 +39,7 @@ export default defineConfig({
   base: './',
   server: {
     proxy: {
-//       '/api': 'http://localhost:9091',
-//       '/store-scopes': 'http://localhost:9091',
     },
   },
 })
 
-// export default defineConfig({
-//   plugins: [react()],
-// });
