@@ -45,7 +45,8 @@ iam-service-extensions  :9093
 ## Setup
 
 ```bash
-cp Config.toml.example Config.toml   # if present, else create manually
+cp Config.toml.example Config.toml
+# Edit Config.toml with your values
 bal run
 ```
 

@@ -21,6 +21,8 @@ On load, `App.tsx` calls `GET /get-consent-data`. If the BFF returns `flow = "re
 
 ## Setup
 
+Requires **Node.js 22.8.0**.
+
 ```bash
 npm install
 npm run dev     # dev server at http://localhost:5175
@@ -29,10 +31,10 @@ npm run build   # production build
 
 ### Runtime configuration
 
-Configuration is loaded at runtime from `public/config.js`, which sets values on `window.Config`. Edit this file before running or deploying:
+Configuration is loaded at runtime from `public/config.js`, which sets values on `window.config`. Edit this file before running or deploying:
 
 ```js
-window.Config = {
+window.config = {
     CONSENT_BFF_URL: "",           // BFF base URL; leave empty to use relative path
     IDP_AUTHORIZE_URL: ""          // IDP authorize URL for the final form POST
 };
@@ -40,7 +42,7 @@ window.Config = {
 
 | Key | Description |
 |-----|-------------|
-| `CONSENT_BFF_URL` | BFF base URL. Leave blank to use the Vite dev proxy (`/` → `http://localhost:9092`) |
+| `CONSENT_BFF_URL` | BFF base URL. Leave blank to use relative paths (proxied to `http://localhost:9092` in dev) |
 | `IDP_AUTHORIZE_URL` | IDP URL for the final form POST after consent is stored. WSO2 IS: `https://localhost:9443/oauth2/authorize`. Asgardeo: `https://api.asgardeo.io/t/<tenant>/oauth2/authorize` |
 
 For deployment (e.g. Choreo Static Site), mount a customised `config.js` at the web root.

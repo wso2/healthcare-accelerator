@@ -22,7 +22,7 @@ consent-app-bff  :9092
 | `connections.bal` | IDP + OpenFGC HTTP clients, token management |
 | `types.bal` | All record types |
 | `service.bal` | HTTP listener, service endpoints |
-| `tests/` | Mock IDP + OpenFGC, service tests |
+| `tests/` | Mock OpenFGC listener, IDP mocked at function level, service tests |
 
 ## API
 
