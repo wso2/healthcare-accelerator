@@ -544,7 +544,11 @@ service / on consentBffListener {
         };
         jwt:Payload tokenPayload = check jwt:validate(submission.consentToken, validatorConfig);
 
-        string trustedUser = tokenPayload.sub ?: "";
+        string|() sub = tokenPayload.sub;
+        if sub is () || sub == "" {
+            return error("Consent token missing subject");
+        }
+        string trustedUser = sub;
         string trustedApp = (tokenPayload["app"] ?: "").toString();
         string tokenSdkc = (tokenPayload["sdkc"] ?: "").toString();
 
