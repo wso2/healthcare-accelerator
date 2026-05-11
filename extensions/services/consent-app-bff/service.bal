@@ -320,7 +320,7 @@ isolated function getExistingConsent(string userId, string effectiveFlow) return
         allowMethods: ["GET", "POST", "OPTIONS"]
     }
 }
-service /v2 on consentBffListener {
+service / on consentBffListener {
 
     # Returns aggregated consent context for the UI in one response.
     # + sessionDataKeyConsent - The consent session key from the identity server

@@ -70,7 +70,7 @@ dependencies = [
 [[package]]
 org = "ballerina"
 name = "http"
-version = "2.14.10"
+version = "2.14.11"
 dependencies = [
 	{org = "ballerina", name = "auth"},
 	{org = "ballerina", name = "cache"},
@@ -329,7 +329,7 @@ dependencies = [
 
 [[package]]
 org = "ballerinax"
-name = "consent_app_bff_v2"
+name = "consent_app_bff"
 version = "0.1.0"
 dependencies = [
 	{org = "ballerina", name = "http"},
@@ -340,6 +340,6 @@ dependencies = [
 	{org = "ballerina", name = "url"}
 ]
 modules = [
-	{org = "ballerinax", packageName = "consent_app_bff_v2", moduleName = "consent_app_bff_v2"}
+	{org = "ballerinax", packageName = "consent_app_bff", moduleName = "consent_app_bff"}
 ]
 

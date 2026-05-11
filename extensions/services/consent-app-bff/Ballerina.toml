@@ -1,6 +1,6 @@
 [package]
 org = "ballerinax"
-name = "consent_app_bff_v2"
+name = "consent_app_bff"
 version = "0.1.0"
 distribution = "2201.12.10"
 

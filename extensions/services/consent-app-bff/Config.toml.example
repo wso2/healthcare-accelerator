@@ -1,4 +1,4 @@
-# consent-app-bff-v2 Configuration Template
+# consent-app-bff Configuration Template
 # Copy to Config.toml and fill in your values.
 
 hostname = "localhost"

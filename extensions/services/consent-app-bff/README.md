@@ -1,14 +1,14 @@
-# consent-app-bff-v2
+# consent-app-bff
 
-Ballerina Backend-for-Frontend for the v2 consent application. Runs on port **9092**, exposes a `/v2` HTTP API, and works with both WSO2 IS and Asgardeo.
+Ballerina Backend-for-Frontend for the consent application. Runs on port **9092**, exposes a REST API, and works with both WSO2 IS and Asgardeo.
 
 ## Architecture
 
 ```
-consent-app-v2 (UI)
+consent-app (UI)
       │
       ▼
-consent-app-bff-v2  :9092
+consent-app-bff  :9092
       │
       ├── IDP (WSO2 IS / Asgardeo)  — OauthConsentKey + SCIM
       └── OpenFGC  — consent store
@@ -21,12 +21,12 @@ consent-app-bff-v2  :9092
 | `config.bal` | All configurables |
 | `connections.bal` | IDP + OpenFGC HTTP clients, token management |
 | `types.bal` | All record types |
-| `service.bal` | HTTP listener, `/v2` service endpoints |
+| `service.bal` | HTTP listener, service endpoints |
 | `tests/` | Mock IDP + OpenFGC, service tests |
 
 ## API
 
-### `GET /v2/get-consent-data?sessionDataKeyConsent=&spId=`
+### `GET /get-consent-data?sessionDataKeyConsent=&spId=`
 
 Resolves the consent flow and returns all data the UI needs in one call.
 
@@ -68,7 +68,7 @@ Resolves the consent flow and returns all data the UI needs in one call.
 }
 ```
 
-### `POST /v2/submit-consent`
+### `POST /submit-consent`
 
 Validates the JWT consent token and stores the decision in OpenFGC. The UI form-POSTs directly to the IDP after this call succeeds.
 

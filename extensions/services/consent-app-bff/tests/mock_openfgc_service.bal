@@ -18,7 +18,7 @@ import ballerina/http;
 import ballerina/log;
 
 // In-process mock OpenFGC consent service used during bal test.
-// Handles the minimal set of endpoints called by consent-app-bff-v2.
+// Handles the minimal set of endpoints called by consent-app-bff.
 
 listener http:Listener mockOpenfgcListener = new (9196);
 

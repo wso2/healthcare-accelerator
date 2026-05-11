@@ -1,4 +1,4 @@
-# Local env — contains secrets, do not commit
+# Local env
 .env
 
 # Logs

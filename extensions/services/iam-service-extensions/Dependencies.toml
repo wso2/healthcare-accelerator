@@ -70,7 +70,7 @@ dependencies = [
 [[package]]
 org = "ballerina"
 name = "http"
-version = "2.14.10"
+version = "2.14.11"
 dependencies = [
 	{org = "ballerina", name = "auth"},
 	{org = "ballerina", name = "cache"},
@@ -341,7 +341,7 @@ modules = [
 
 [[package]]
 org = "ballerinax"
-name = "iam_service_extensions_v2"
+name = "iam_service_extensions"
 version = "0.1.0"
 dependencies = [
 	{org = "ballerina", name = "http"},
@@ -353,6 +353,6 @@ dependencies = [
 	{org = "ballerinai", name = "observe"}
 ]
 modules = [
-	{org = "ballerinax", packageName = "iam_service_extensions_v2", moduleName = "iam_service_extensions_v2"}
+	{org = "ballerinax", packageName = "iam_service_extensions", moduleName = "iam_service_extensions"}
 ]
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 window.config = {
-    // Base URL of the BFF service (leave empty to use the relative /v2 path)
+    // Base URL of the BFF service (leave empty to use the relative path)
     CONSENT_BFF_URL: "",
     // IDP authorize URL — used for the final form POST after consent is stored
     IDP_AUTHORIZE_URL: ""

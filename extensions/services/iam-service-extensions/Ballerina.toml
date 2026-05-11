@@ -1,6 +1,6 @@
 [package]
 org = "ballerinax"
-name = "iam_service_extensions_v2"
+name = "iam_service_extensions"
 version = "0.1.0"
 distribution = "2201.12.10"
 keywords = ["Healthcare", "IAM", "extensions"]

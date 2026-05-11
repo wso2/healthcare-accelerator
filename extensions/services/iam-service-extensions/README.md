@@ -1,6 +1,6 @@
-# iam-service-extensions-v2
+# iam-service-extensions
 
-Ballerina pre-issue-access-token action service for the v2 consent system. Runs on port **9093**. Intercepts token issuance, validates requested scopes against the user's OpenFGC consent record, and injects patient/encounter/consent_id claims.
+Ballerina pre-issue-access-token action service for the consent system. Runs on port **9093**. Intercepts token issuance, validates requested scopes against the user's OpenFGC consent record, and injects patient/encounter/consent_id claims.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ Ballerina pre-issue-access-token action service for the v2 consent system. Runs 
 IDP (WSO2 IS / Asgardeo)
       │ POST /pre-issue-access-token
       ▼
-iam-service-extensions-v2  :9093
+iam-service-extensions  :9093
       │
       ├── OpenFGC  — consent record lookup (by sessionDataKeyConsent)
       └── SCIM     — patient ID resolution fallback (optional)

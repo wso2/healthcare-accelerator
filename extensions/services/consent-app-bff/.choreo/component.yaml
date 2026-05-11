@@ -19,7 +19,7 @@ endpoints:
   - name: consent_app_bff
     displayName: Consent App BFF
     service:
-      basePath: /v2
+      basePath: /
       port: 9092
     type: REST
     networkVisibilities:
