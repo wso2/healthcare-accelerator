@@ -145,11 +145,16 @@ function ConsentRoute() {
   return <PurposeConsentPage data={data as PurposeConsentData} />;
 }
 
+function RedirectToConsentPage() {
+  const [searchParams] = useSearchParams();
+  return <Navigate to={`/home?${searchParams.toString()}`} replace />;
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/consent-page" element={<ConsentRoute />} />
-      <Route path="*" element={<Navigate to="/consent-page" replace />} />
+      <Route path="/home" element={<ConsentRoute />} />
+      <Route path="*" element={<RedirectToConsentPage />} />
     </Routes>
   );
 }

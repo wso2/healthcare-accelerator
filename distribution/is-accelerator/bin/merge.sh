@@ -113,17 +113,30 @@ if [ "${PATCH_MODE}" == "true" ]; then
   # adding the temporary IS resources to the product pack until the fixes are available in official pack
   echo -e "[INFO] Copying temporary IS patch resources.."
   cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/temp/components/dropins/* "${WSO2_OH_IS_HOME}"/repository/components/dropins
-  cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/temp/components/webapps/* "${WSO2_OH_IS_HOME}"/repository/deployment/server/webapps
+  cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/temp/deployment/server/webapps/* "${WSO2_OH_IS_HOME}"/repository/deployment/server/webapps
   echo -e "[INFO] Patch resources applied"
 fi
 
-# adding the consent-app webapp
-echo -e "[INFO] Deploying consent-app webapp.."
-mkdir -p "${WSO2_OH_IS_HOME}"/repository/deployment/server/webapps/consent-app
-cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/deployment/server/webapps/consent-app/* "${WSO2_OH_IS_HOME}"/repository/deployment/server/webapps/consent-app
+# adding the consent webapp
+echo -e "[INFO] Deploying consent webapp.."
+mkdir -p "${WSO2_OH_IS_HOME}"/repository/deployment/server/webapps/consent
+cp -R "${ACCELERATOR_HOME}"/carbon-home/repository/deployment/server/webapps/consent/* "${WSO2_OH_IS_HOME}"/repository/deployment/server/webapps/consent
 
 # adding configurations to deployment.toml file
 echo -e "[INFO] Adding configurations to deployment.toml file"
+
+# ensure server offset is set to 10
+DEPLOYMENT_TOML="${WSO2_OH_IS_HOME}/repository/conf/deployment.toml"
+# check if offset exists (active or commented) under [server] section (before next section header)
+if awk '/^\[server\]/{found=1; next} found && /^\[/{exit} found && /^\s*#?\s*offset\s*=/{exit 0} END{exit 1}' "${DEPLOYMENT_TOML}"; then
+  # offset exists (active or commented) under [server] — uncomment and set to 10
+  awk '/^\[server\]/{in_server=1} in_server && /^\[/ && !/^\[server\]/{in_server=0} in_server && /^\s*#?\s*offset\s*=/{print "offset = 10"; next} {print}' "${DEPLOYMENT_TOML}" > "${DEPLOYMENT_TOML}.tmp" && mv "${DEPLOYMENT_TOML}.tmp" "${DEPLOYMENT_TOML}"
+  echo -e "[INFO] Updated server offset to 10"
+else
+  # no offset line under [server] — insert after [server] line
+  sed -i.bak '/^\[server\]/a offset = 10' "${DEPLOYMENT_TOML}"
+  echo -e "[INFO] Added offset = 10 under [server]"
+fi
 
 if [ "${enable_smart_on_fhir}" == "true" ]; then
   if grep -Fxq "[oauth]" "${WSO2_OH_IS_HOME}"/repository/conf/deployment.toml
@@ -164,12 +177,12 @@ if [ "${enable_smart_on_fhir}" == "true" ]; then
   fi
 
   J2_FILE="${WSO2_OH_IS_HOME}/repository/resources/conf/templates/repository/conf/identity/resource-access-control-v2.xml.j2"
-  if grep -Fq 'context="(.*)/consent-app(.*)"' "${J2_FILE}"
+  if grep -Fq 'context="(.*)/consent(.*)"' "${J2_FILE}"
   then
-      echo -e "[WARN] resource-access-control-v2.xml.j2 already patched for consent-app"
+      echo -e "[WARN] resource-access-control-v2.xml.j2 already patched for consent"
   else
-      sed -i.bak 's|<Resource context="(.*)/console(.*)" secured="false" http-method="all"/>|<Resource context="(.*)/console(.*)" secured="false" http-method="all"/>\n        <Resource context="(.*)/consent-app(.*)" secured="false" http-method="all"/>|' "${J2_FILE}"
-      echo -e "[INFO] Patched resource-access-control-v2.xml.j2 for consent-app"
+      sed -i.bak 's|<Resource context="(.*)/console(.*)" secured="false" http-method="all"/>|<Resource context="(.*)/console(.*)" secured="false" http-method="all"/>\n        <Resource context="(.*)/consent(.*)" secured="false" http-method="all"/>|' "${J2_FILE}"
+      echo -e "[INFO] Patched resource-access-control-v2.xml.j2 for consent"
   fi
 
   if grep -Fq "name = \"org.wso2.is.notification.ApimOauthEventInterceptor\"" "${WSO2_OH_IS_HOME}"/repository/conf/deployment.toml
