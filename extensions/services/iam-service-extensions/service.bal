@@ -280,5 +280,12 @@ isolated function getFhirUserFromScim(map<json> scimUser) returns string? {
             return fhirUser;
         }
     }
+    json wso2Schema = scimUser["urn:scim:wso2:schema"] ?: {};
+    if wso2Schema is map<json> {
+        json fhirUser = wso2Schema[fhirUserAttributeName] ?: "";
+        if fhirUser is string && fhirUser != "" {
+            return fhirUser;
+        }
+    }
     return ();
 }
