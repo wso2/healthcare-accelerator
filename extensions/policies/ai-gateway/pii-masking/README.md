@@ -73,7 +73,9 @@ The policy takes no parameters — it works out of the box. See
 
 ## Limitations
 
-- Supported only on Linux x86_64 with CPython 3.10, matching Gateway 1.2.1.
+- The package supports CPython 3.10 and 3.11 on Linux x86_64 so Gateway Builder
+  1.2.1 can discover it with Python 3.11. The deployed Gateway 1.2.1 runtime
+  remains CPython 3.10.
 - Request and response bodies are buffered, so streaming (`stream: true`) isn't
   supported yet.
 - Uses the `OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1` model and pins
