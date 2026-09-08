@@ -37,7 +37,7 @@ from apip_sdk_core import (
 )
 
 MODEL_NAME = "OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1"
-SKIP_KEYS = {"model", "role"}
+SKIP_KEYS = {"model", "role", "tools"}
 SKIP_CONTENT_ROLES = {"developer", "system"}
 
 _PIPELINE: Any | None = None

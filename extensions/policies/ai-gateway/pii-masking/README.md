@@ -33,8 +33,8 @@ ever saw redacted text.
 
 Structural fields such as `model` and `role` are left untouched; only free-text
 strings are redacted. Static `system` and `developer` message content is also
-left untouched, while user and tool content is redacted before it leaves the
-gateway.
+left untouched along with static tool definitions, while user and tool content
+is redacted before it leaves the gateway.
 
 ## Using the policy
 

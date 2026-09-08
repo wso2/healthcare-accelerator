@@ -93,6 +93,7 @@ class RequestRedactionScopeTest(unittest.TestCase):
         with patch.object(policy, "_redact_text", side_effect=redact_text):
             result = policy._redact_structure(
                 {
+                    "tools": [{"type": "function", "function": {"name": "read_fhir"}}],
                     "messages": [
                         {"role": "system", "content": "Static instructions"},
                         {"role": "user", "content": "Jane Doe"},
@@ -103,4 +104,5 @@ class RequestRedactionScopeTest(unittest.TestCase):
 
         self.assertEqual(result["messages"][0]["content"], "Static instructions")
         self.assertEqual(result["messages"][1]["content"], "redacted:Jane Doe")
+        self.assertEqual(result["tools"][0]["function"]["name"], "read_fhir")
         self.assertEqual(redacted, ["Jane Doe"])
