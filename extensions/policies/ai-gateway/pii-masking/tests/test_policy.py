@@ -17,7 +17,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 def load_policy_module() -> types.ModuleType:
@@ -57,3 +57,24 @@ class RestoreStructureTest(unittest.TestCase):
             restored = policy._restore_structure({"<<OPENMED_PHI_NAME_000001>>": "summary"}, mapping)
 
         self.assertEqual(restored, {"Jane Doe": "summary"})
+
+
+class PipelineCacheTest(unittest.TestCase):
+    def test_reuses_the_loaded_privacy_filter_pipeline(self) -> None:
+        policy_module = load_policy_module()
+        backend = types.ModuleType("openmed.core.backends")
+        backend.create_privacy_filter_pipeline = Mock(return_value=object())
+
+        with patch.dict(
+            sys.modules,
+            {
+                "openmed": types.ModuleType("openmed"),
+                "openmed.core": types.ModuleType("openmed.core"),
+                "openmed.core.backends": backend,
+            },
+        ):
+            first = policy_module._privacy_filter_pipeline()
+            second = policy_module._privacy_filter_pipeline()
+
+        self.assertIs(first, second)
+        backend.create_privacy_filter_pipeline.assert_called_once_with(policy_module.MODEL_NAME)

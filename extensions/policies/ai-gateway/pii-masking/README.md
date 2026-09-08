@@ -79,4 +79,4 @@ The policy takes no parameters — it works out of the box. See
 - Request and response bodies are buffered, so streaming (`stream: true`) isn't
   supported yet.
 - Uses the `OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1` model and pins
-  `torch==2.13.0` for the model runtime.
+  the CPU-only `torch==2.13.0` wheel for the model runtime and builder.
