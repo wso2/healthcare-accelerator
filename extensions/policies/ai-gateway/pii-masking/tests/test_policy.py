@@ -78,3 +78,29 @@ class PipelineCacheTest(unittest.TestCase):
 
         self.assertIs(first, second)
         backend.create_privacy_filter_pipeline.assert_called_once_with(policy_module.MODEL_NAME)
+
+
+class RequestRedactionScopeTest(unittest.TestCase):
+    def test_skips_static_system_content_but_redacts_user_content(self) -> None:
+        policy_module = load_policy_module()
+        policy = policy_module.PiiMaskingPolicy()
+        redacted = []
+
+        def redact_text(value, mapping):
+            redacted.append(value)
+            return f"redacted:{value}"
+
+        with patch.object(policy, "_redact_text", side_effect=redact_text):
+            result = policy._redact_structure(
+                {
+                    "messages": [
+                        {"role": "system", "content": "Static instructions"},
+                        {"role": "user", "content": "Jane Doe"},
+                    ]
+                },
+                {},
+            )
+
+        self.assertEqual(result["messages"][0]["content"], "Static instructions")
+        self.assertEqual(result["messages"][1]["content"], "redacted:Jane Doe")
+        self.assertEqual(redacted, ["Jane Doe"])

@@ -38,6 +38,7 @@ from apip_sdk_core import (
 
 MODEL_NAME = "OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1"
 SKIP_KEYS = {"model", "role"}
+SKIP_CONTENT_ROLES = {"developer", "system"}
 
 _PIPELINE: Any | None = None
 _PIPELINE_LOCK = threading.Lock()
@@ -104,7 +105,14 @@ class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
 
     def _redact_structure(self, node: Any, mapping: dict[str, str]) -> Any:
         if isinstance(node, dict):
-            return {k: (v if k in SKIP_KEYS else self._redact_structure(v, mapping)) for k, v in node.items()}
+            return {
+                key: (
+                    value
+                    if key in SKIP_KEYS or (key == "content" and node.get("role") in SKIP_CONTENT_ROLES)
+                    else self._redact_structure(value, mapping)
+                )
+                for key, value in node.items()
+            }
         if isinstance(node, list):
             return [self._redact_structure(item, mapping) for item in node]
         if isinstance(node, str):
