@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pii-masking"
-version = "1.0.4"
+version = "1"
 description = "WSO2 AI Gateway PII masking policy (OpenMed deidentification model) for the Python executor"
 readme = "README.md"
 requires-python = ">=3.10,<3.12"
