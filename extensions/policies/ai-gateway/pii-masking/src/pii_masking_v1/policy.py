@@ -104,14 +104,7 @@ class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
 
     def _redact_structure(self, node: Any, mapping: dict[str, str]) -> Any:
         if isinstance(node, dict):
-            return {
-                key: (
-                    value
-                    if key in SKIP_KEYS
-                    else self._redact_structure(value, mapping)
-                )
-                for key, value in node.items()
-            }
+            return {k: (v if k in SKIP_KEYS else self._redact_structure(v, mapping)) for k, v in node.items()}
         if isinstance(node, list):
             return [self._redact_structure(item, mapping) for item in node]
         if isinstance(node, str):
