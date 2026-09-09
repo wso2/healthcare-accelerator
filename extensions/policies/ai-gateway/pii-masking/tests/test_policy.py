@@ -81,7 +81,7 @@ class PipelineCacheTest(unittest.TestCase):
 
 
 class RequestRedactionScopeTest(unittest.TestCase):
-    def test_redacts_request_tool_metadata(self) -> None:
+    def test_redacts_all_request_content_and_tool_metadata(self) -> None:
         policy_module = load_policy_module()
         policy = policy_module.PiiMaskingPolicy()
         redacted = []
@@ -103,14 +103,16 @@ class RequestRedactionScopeTest(unittest.TestCase):
                         }
                     ],
                     "messages": [
-                        {"role": "system", "content": "Static instructions"},
+                        {"role": "system", "content": "Jane Doe system instructions"},
+                        {"role": "developer", "content": "Jane Doe developer instructions"},
                         {"role": "user", "content": "Jane Doe"},
                     ]
                 },
                 {},
             )
 
-        self.assertEqual(result["messages"][0]["content"], "Static instructions")
-        self.assertEqual(result["messages"][1]["content"], "redacted:Jane Doe")
+        self.assertEqual(result["messages"][0]["content"], "redacted:Jane Doe system instructions")
+        self.assertEqual(result["messages"][1]["content"], "redacted:Jane Doe developer instructions")
+        self.assertEqual(result["messages"][2]["content"], "redacted:Jane Doe")
         self.assertEqual(result["tools"][0]["function"]["description"], "redacted:Read records for Jane Doe")
         self.assertIn("Read records for Jane Doe", redacted)

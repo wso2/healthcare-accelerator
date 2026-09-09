@@ -31,10 +31,9 @@ ever saw redacted text.
    or mangled placeholder rejects the restore, and the still-redacted response
    is passed through unchanged rather than leaking data.
 
-Structural fields such as `model` and `role` are left untouched; only free-text
-strings are redacted. Static `system` and `developer` message content is also
-left untouched along with static tool definitions, while user and tool content
-is redacted before it leaves the gateway.
+Structural fields such as `model` and `role` are left untouched; all free-text
+strings, including message and tool content, are redacted before they leave the
+gateway.
 
 ## Using the policy
 
