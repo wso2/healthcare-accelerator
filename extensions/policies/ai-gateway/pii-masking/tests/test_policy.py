@@ -116,3 +116,42 @@ class RequestRedactionScopeTest(unittest.TestCase):
         self.assertEqual(result["messages"][2]["content"], "redacted:Jane Doe")
         self.assertEqual(result["tools"][0]["function"]["description"], "redacted:Read records for Jane Doe")
         self.assertIn("Read records for Jane Doe", redacted)
+
+    def test_preserves_tool_call_protocol_identifiers(self) -> None:
+        policy_module = load_policy_module()
+        policy = policy_module.PiiMaskingPolicy()
+
+        with patch.object(policy, "_redact_text", side_effect=lambda value, _: f"redacted:{value}"):
+            result = policy._redact_structure(
+                {
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "id": "call_FkfMPkwPsvW7CBExEySfLGEQ",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "search_fhir",
+                                        "arguments": '{"name":"Jane Doe"}',
+                                    },
+                                }
+                            ],
+                        },
+                        {
+                            "role": "tool",
+                            "tool_call_id": "call_FkfMPkwPsvW7CBExEySfLGEQ",
+                            "content": "Jane Doe patient record",
+                        },
+                    ]
+                },
+                {},
+            )
+
+        tool_call = result["messages"][0]["tool_calls"][0]
+        self.assertEqual(tool_call["id"], "call_FkfMPkwPsvW7CBExEySfLGEQ")
+        self.assertEqual(tool_call["type"], "function")
+        self.assertEqual(tool_call["function"]["name"], "search_fhir")
+        self.assertEqual(tool_call["function"]["arguments"], 'redacted:{"name":"Jane Doe"}')
+        self.assertEqual(result["messages"][1]["tool_call_id"], "call_FkfMPkwPsvW7CBExEySfLGEQ")
+        self.assertEqual(result["messages"][1]["content"], "redacted:Jane Doe patient record")
