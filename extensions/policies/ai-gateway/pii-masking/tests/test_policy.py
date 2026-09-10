@@ -17,7 +17,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 def load_policy_module() -> types.ModuleType:
@@ -57,3 +57,62 @@ class RestoreStructureTest(unittest.TestCase):
             restored = policy._restore_structure({"<<OPENMED_PHI_NAME_000001>>": "summary"}, mapping)
 
         self.assertEqual(restored, {"Jane Doe": "summary"})
+
+
+class PipelineCacheTest(unittest.TestCase):
+    def test_reuses_the_loaded_privacy_filter_pipeline(self) -> None:
+        policy_module = load_policy_module()
+        backend = types.ModuleType("openmed.core.backends")
+        backend.create_privacy_filter_pipeline = Mock(return_value=object())
+
+        with patch.dict(
+            sys.modules,
+            {
+                "openmed": types.ModuleType("openmed"),
+                "openmed.core": types.ModuleType("openmed.core"),
+                "openmed.core.backends": backend,
+            },
+        ):
+            first = policy_module._privacy_filter_pipeline()
+            second = policy_module._privacy_filter_pipeline()
+
+        self.assertIs(first, second)
+        backend.create_privacy_filter_pipeline.assert_called_once_with(policy_module.MODEL_NAME)
+
+
+class RequestRedactionScopeTest(unittest.TestCase):
+    def test_redacts_all_request_content_and_tool_metadata(self) -> None:
+        policy_module = load_policy_module()
+        policy = policy_module.PiiMaskingPolicy()
+        redacted = []
+
+        def redact_text(value, mapping):
+            redacted.append(value)
+            return f"redacted:{value}"
+
+        with patch.object(policy, "_redact_text", side_effect=redact_text):
+            result = policy._redact_structure(
+                {
+                    "tools": [
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": "read_fhir",
+                                "description": "Read records for Jane Doe",
+                            },
+                        }
+                    ],
+                    "messages": [
+                        {"role": "system", "content": "Jane Doe system instructions"},
+                        {"role": "developer", "content": "Jane Doe developer instructions"},
+                        {"role": "user", "content": "Jane Doe"},
+                    ]
+                },
+                {},
+            )
+
+        self.assertEqual(result["messages"][0]["content"], "redacted:Jane Doe system instructions")
+        self.assertEqual(result["messages"][1]["content"], "redacted:Jane Doe developer instructions")
+        self.assertEqual(result["messages"][2]["content"], "redacted:Jane Doe")
+        self.assertEqual(result["tools"][0]["function"]["description"], "redacted:Read records for Jane Doe")
+        self.assertIn("Read records for Jane Doe", redacted)

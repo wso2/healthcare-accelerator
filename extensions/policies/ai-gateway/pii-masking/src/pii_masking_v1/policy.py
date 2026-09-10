@@ -39,12 +39,36 @@ from apip_sdk_core import (
 MODEL_NAME = "OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1"
 SKIP_KEYS = {"model", "role"}
 
+_PIPELINE: Any | None = None
+_PIPELINE_LOCK = threading.Lock()
+
 logger = logging.getLogger("pii-masking")
 logger.setLevel(logging.INFO)
 _handler = logging.StreamHandler()
 _handler.setFormatter(logging.Formatter("%(message)s"))
 logger.addHandler(_handler)
 logger.propagate = False
+
+
+def _privacy_filter_pipeline() -> Any:
+    global _PIPELINE
+    if _PIPELINE is None:
+        with _PIPELINE_LOCK:
+            if _PIPELINE is None:
+                from openmed.core.backends import create_privacy_filter_pipeline
+
+                _PIPELINE = create_privacy_filter_pipeline(MODEL_NAME)
+    return _PIPELINE
+
+
+def _extract_pii(text_blob: str) -> Any:
+    from openmed.core.pii import _extract_pii_batch
+
+    return _extract_pii_batch(
+        [text_blob],
+        model_name=MODEL_NAME,
+        privacy_filter_pipeline=_privacy_filter_pipeline(),
+    )[0]
 
 
 class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
@@ -71,10 +95,9 @@ class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
     def _redact_text(self, text_blob: str, mapping: dict[str, str]) -> str:
         if not text_blob.strip():
             return text_blob
-        from openmed import extract_pii
         from openmed.service.privacy_gateway import coerce_gateway_entities, redact_text
 
-        entities = coerce_gateway_entities(extract_pii(text_blob, model_name=MODEL_NAME), text_blob)
+        entities = coerce_gateway_entities(_extract_pii(text_blob), text_blob)
         session = redact_text(text_blob, entities, request_id=uuid.uuid4().hex)
         mapping.update(session.placeholder_map)
         return session.redacted_text
@@ -183,9 +206,7 @@ def get_policy(metadata, params):
 def _warm_up_model() -> None:
     try:
         started = time.perf_counter()
-        from openmed import extract_pii
-
-        extract_pii("warm up", model_name=MODEL_NAME)
+        _extract_pii("warm up")
         logger.info("OpenMed model loaded in %.1f s", time.perf_counter() - started)
     except Exception:
         logger.exception("model warm-up failed; the first request will load the model instead")
