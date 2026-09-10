@@ -37,7 +37,9 @@ from apip_sdk_core import (
 )
 
 MODEL_NAME = "OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1"
-SKIP_KEYS = {"model", "role"}
+SKIP_KEYS = {"model", "role", "tool_call_id"}
+TOOL_CALL_KEYS = {"id", "type"}
+TOOL_FUNCTION_KEYS = {"name"}
 
 _PIPELINE: Any | None = None
 _PIPELINE_LOCK = threading.Lock()
@@ -104,12 +106,51 @@ class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
 
     def _redact_structure(self, node: Any, mapping: dict[str, str]) -> Any:
         if isinstance(node, dict):
-            return {k: (v if k in SKIP_KEYS else self._redact_structure(v, mapping)) for k, v in node.items()}
+            return {
+                key: (
+                    value
+                    if key in SKIP_KEYS
+                    else self._redact_tool_calls(value, mapping)
+                    if key == "tool_calls"
+                    else self._redact_structure(value, mapping)
+                )
+                for key, value in node.items()
+            }
         if isinstance(node, list):
             return [self._redact_structure(item, mapping) for item in node]
         if isinstance(node, str):
             return self._redact_text(node, mapping)
         return node
+
+    def _redact_tool_calls(self, tool_calls: Any, mapping: dict[str, str]) -> Any:
+        if not isinstance(tool_calls, list):
+            return self._redact_structure(tool_calls, mapping)
+
+        return [self._redact_tool_call(tool_call, mapping) for tool_call in tool_calls]
+
+    def _redact_tool_call(self, tool_call: Any, mapping: dict[str, str]) -> Any:
+        if not isinstance(tool_call, dict):
+            return self._redact_structure(tool_call, mapping)
+
+        return {
+            key: (
+                value
+                if key in TOOL_CALL_KEYS
+                else self._redact_tool_function(value, mapping)
+                if key == "function"
+                else self._redact_structure(value, mapping)
+            )
+            for key, value in tool_call.items()
+        }
+
+    def _redact_tool_function(self, function: Any, mapping: dict[str, str]) -> Any:
+        if not isinstance(function, dict):
+            return self._redact_structure(function, mapping)
+
+        return {
+            key: value if key in TOOL_FUNCTION_KEYS else self._redact_structure(value, mapping)
+            for key, value in function.items()
+        }
 
     def _restore_text(self, text_blob: str, mapping: dict[str, str]) -> str:
         from openmed.service.privacy_gateway import reidentify_placeholders
