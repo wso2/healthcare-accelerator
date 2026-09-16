@@ -37,9 +37,25 @@ The policy runs on the **request flow** only. Response and fault flows are pass-
 
 ---
 
+## Security & Trust Boundary
+
+### Gateway-Level JWT Validation
+In production deployments (such as WSO2 API Manager or Choreo Bijira Gateway):
+1. **Gateway as PEP**: The API Gateway acts as the primary Policy Enforcement Point (PEP) for authentication. When incoming requests carry a Bearer JWT, the Gateway cryptographically validates the token against the Identity Provider (JWKS/certificate), validates standard claims (`exp`, `nbf`, `iss`, `aud`), and enforces configured scopes.
+2. **Untrusted Token Rejection**: If the token is missing, expired, tampered with, or signed by an unknown authority, the Gateway terminates the request with `401 Unauthorized` before any mediation policy runs.
+3. **Backend Assertion Forwarding**: Upon successful validation, the Gateway generates and forwards a trusted assertion via the `X-JWT-Assertion` header to downstream mediation policies and backends.
+
+### Policy Responsibility
+Because cryptographic integrity and authentication are guaranteed upstream by the Gateway:
+- `consentEnforcePolicy` operates within the trusted security perimeter.
+- The policy uses `jwt:decode()` solely to extract the `consent_id` claim needed for consent enforcement; it does not duplicate signature or issuer/audience validation.
+- The `Authorization` header fallback exists to support local development and non-gateway test environments. In production, APIs must declare security requirements (e.g., as in `simple-api.yaml`) so that all requests are authenticated by the Gateway prior to policy execution.
+
+---
+
 ## JWT Requirements
 
-The policy reads the token from the `X-JWT-Assertion` header when present (set automatically by the Bijira/WSO2 APIM gateway). For direct calls that bypass the gateway, it falls back to the `Authorization: Bearer <token>` header.
+The policy extracts the token from the `X-JWT-Assertion` header when present (set automatically by the Bijira/WSO2 APIM gateway). For direct calls that bypass the gateway, it falls back to the `Authorization: Bearer <token>` header.
 
 The JWT must contain a `consent_id` claim in its payload:
 
@@ -50,8 +66,6 @@ The JWT must contain a `consent_id` claim in its payload:
   ...
 }
 ```
-
-The policy does **not** verify the JWT signature — it only decodes and reads claims.
 
 ---
 
