@@ -93,11 +93,14 @@ class TestPipelineCache:
                 "openmed.core.backends": backend,
             },
         ):
-            first = policy_module._privacy_filter_pipeline("model-a")
-            second = policy_module._privacy_filter_pipeline("model-b")
+            first = policy_module._privacy_filter_pipeline("OpenMed/privacy-filter-a")
+            second = policy_module._privacy_filter_pipeline("OpenMed/privacy-filter-b")
 
         assert first is not second
-        assert backend.create_privacy_filter_pipeline.call_args_list == [call("model-a"), call("model-b")]
+        assert backend.create_privacy_filter_pipeline.call_args_list == [
+            call("OpenMed/privacy-filter-a"),
+            call("OpenMed/privacy-filter-b"),
+        ]
 
 
 class TestPolicyConfiguration:

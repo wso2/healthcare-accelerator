@@ -62,14 +62,17 @@ def _privacy_filter_pipeline(model_name: str = MODEL_NAME) -> Any:
     return _PIPELINES[model_name]
 
 
+def _uses_privacy_filter(model_name: str) -> bool:
+    return "privacy-filter" in model_name.lower()
+
+
 def _extract_pii(text_blob: str, model_name: str = MODEL_NAME) -> Any:
     from openmed.core.pii import _extract_pii_batch
 
-    return _extract_pii_batch(
-        [text_blob],
-        model_name=model_name,
-        privacy_filter_pipeline=_privacy_filter_pipeline(model_name),
-    )[0]
+    kwargs = {"model_name": model_name}
+    if _uses_privacy_filter(model_name):
+        kwargs["privacy_filter_pipeline"] = _privacy_filter_pipeline(model_name)
+    return _extract_pii_batch([text_blob], **kwargs)[0]
 
 
 class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
@@ -87,6 +90,13 @@ class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
     def __init__(self, model_name: str = MODEL_NAME) -> None:
         self.model_name = model_name
         self._mappings: dict[str, dict[str, str]] = {}
+        if model_name != MODEL_NAME:
+            threading.Thread(
+                target=_warm_up_model,
+                args=(model_name,),
+                name="openmed-configured-warmup",
+                daemon=True,
+            ).start()
 
     def mode(self) -> ProcessingMode:
         return ProcessingMode(
@@ -247,11 +257,11 @@ def get_policy(metadata, params):
     return PiiMaskingPolicy(model_name=model_name)
 
 
-def _warm_up_model() -> None:
+def _warm_up_model(model_name: str = MODEL_NAME) -> None:
     try:
         started = time.perf_counter()
-        _extract_pii("warm up")
-        logger.info("OpenMed model loaded in %.1f s", time.perf_counter() - started)
+        _extract_pii("warm up", model_name)
+        logger.info("OpenMed model %s loaded in %.1f s", model_name, time.perf_counter() - started)
     except Exception:
         logger.exception("model warm-up failed; the first request will load the model instead")
 
