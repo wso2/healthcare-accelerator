@@ -82,7 +82,7 @@ The policy takes no parameters — it works out of the box. See
 - Uses the `OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1` model and pins
   the CPU-only `torch==2.13.0` wheel for the model runtime and builder.
 
-## Testing and local model comparison
+## Testing
 
 Install the test extra in a supported Python 3.10 or 3.11 environment:
 
@@ -92,40 +92,14 @@ pytest -q
 ```
 
 The tests exercise the policy's redaction and restoration functions directly;
-they do not require an AI Gateway or provider process. For a temporary local
-comparison of OpenMed checkpoints, install the comparison extra and run:
+they do not require an AI Gateway or provider process:
 
 ```sh
-python -m pip install -e '.[comparison]'
-RUN_MODEL_COMPARISON=1 pytest -q -s -m model_comparison
+python -m pip install -e '.[test]'
+pytest -q
 ```
 
-The comparison records model load time, average and median redaction time for
-bounded text samples from 1-, 5-, and 10-resource Synthea bundles, and the
-reported Nemotron-PII micro-F1. The generated plot includes a
-latency-versus-F1 scatter plot, with one labelled point per model, and an
-average latency bar chart. Set
-`SYNTHEA_FHIR_DIR` to another generated dataset and
-`MODEL_COMPARISON_MAX_TEXT_BYTES` to change the default 16 KiB inference input,
-or `MODEL_COMPARISON_PLOT` to choose the PNG output path. The reported scores are
-model-card metrics; local timings are machine-specific and are not an accuracy
-benchmark.
-
-The supported comparison aliases are `ClinicalE5-Small`,
-`LiteClinical-Small`, `SuperClinical-Small`, and `SuperMedical-Base`. Select a
-subset with `MODEL_COMPARISON_MODELS`, for example:
-
-```sh
-MODEL_COMPARISON_MODELS=ClinicalE5-Small,SuperClinical-Small \
-RUN_MODEL_COMPARISON=1 pytest -q -s -m model_comparison
-```
-
-Set `MODEL_COMPARISON_ALL_BUNDLES=1` to sample source Bundles from
-`SYNTHEA_FHIR_DIR` instead of the default 1-, 5-, and 10-resource profiles.
-The default sample size is 100; change it with `MODEL_COMPARISON_BUNDLE_COUNT`
-and use `MODEL_COMPARISON_RANDOM_SEED` for a different reproducible sample.
-
-## Observed comparison results
+## Evaluation notes
 
 On a Python 3.11 CPU run using 100 reproducibly random Bundles from the
 September 2019 Synthea FHIR R4 dataset, with a 16 KiB sample per Bundle:
