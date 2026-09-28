@@ -101,16 +101,49 @@ RUN_MODEL_COMPARISON=1 pytest -q -s -m model_comparison
 ```
 
 The comparison records model load time, average and median redaction time for
-bounded text samples from 1-, 5-, and 10-resource Synthea bundles, and the reported Nemotron-PII
-micro-F1. The generated plot includes a latency-versus-F1 scatter plot, with
-one labelled point per model, and an average latency bar chart. Set
+bounded text samples from 1-, 5-, and 10-resource Synthea bundles, and the
+reported Nemotron-PII micro-F1. The generated plot includes a
+latency-versus-F1 scatter plot, with one labelled point per model, and an
+average latency bar chart. Set
 `SYNTHEA_FHIR_DIR` to another generated dataset and
 `MODEL_COMPARISON_MAX_TEXT_BYTES` to change the default 16 KiB inference input,
 or `MODEL_COMPARISON_PLOT` to choose the PNG output path. The reported scores are
 model-card metrics; local timings are machine-specific and are not an accuracy
 benchmark.
 
+The supported comparison aliases are `ClinicalE5-Small`,
+`LiteClinical-Small`, `SuperClinical-Small`, and `SuperMedical-Base`. Select a
+subset with `MODEL_COMPARISON_MODELS`, for example:
+
+```sh
+MODEL_COMPARISON_MODELS=ClinicalE5-Small,SuperClinical-Small \
+RUN_MODEL_COMPARISON=1 pytest -q -s -m model_comparison
+```
+
 Set `MODEL_COMPARISON_ALL_BUNDLES=1` to sample source Bundles from
 `SYNTHEA_FHIR_DIR` instead of the default 1-, 5-, and 10-resource profiles.
 The default sample size is 100; change it with `MODEL_COMPARISON_BUNDLE_COUNT`
 and use `MODEL_COMPARISON_RANDOM_SEED` for a different reproducible sample.
+
+## Observed comparison results
+
+On a Python 3.11 CPU run using 100 reproducibly random Bundles from the
+September 2019 Synthea FHIR R4 dataset, with a 16 KiB sample per Bundle:
+
+| Model | Reported micro-F1 | Load seconds | Average redaction seconds | Median redaction seconds |
+| --- | ---: | ---: | ---: | ---: |
+| ClinicalE5-Small | 0.9306 | 11.19 | 7.49 | 7.07 |
+| LiteClinical-Small | 0.9485 | 4.89 | 7.52 | 7.26 |
+| SuperClinical-Small | 0.9539 | 7.28 | 17.00 | 16.02 |
+| SuperMedical-Base | 0.9557 | 4.70 | 19.63 | 18.89 |
+
+These timings measure masking only: model inference, entity extraction,
+placeholder replacement, and mapping creation. They do not include response
+demasking. The F1 values are reported model-card metrics from the common
+Nemotron-PII evaluation, not scores recomputed by this test.
+
+The full source dataset contains 1,180 Bundles and is approximately 1.3 GB.
+An attempted complete-payload run of one 717 KB Bundle with 319 FHIR entries
+did not finish within approximately six minutes on the same CPU path. The
+comparison therefore uses bounded samples and should not be interpreted as
+full-payload latency.

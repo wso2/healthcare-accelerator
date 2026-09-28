@@ -56,6 +56,20 @@ CANDIDATES = (
         "https://huggingface.co/OpenMed/OpenMed-PII-SuperMedical-Base-125M-v1",
     ),
 )
+CANDIDATE_BY_NAME = {candidate.name: candidate for candidate in CANDIDATES}
+
+
+def _selected_candidates() -> tuple[Candidate, ...]:
+    requested = os.getenv("MODEL_COMPARISON_MODELS")
+    if not requested:
+        return CANDIDATES
+
+    names = tuple(name.strip() for name in requested.split(",") if name.strip())
+    unsupported = sorted(set(names) - CANDIDATE_BY_NAME.keys())
+    if unsupported:
+        supported = ", ".join(CANDIDATE_BY_NAME)
+        raise ValueError(f"unsupported model(s): {', '.join(unsupported)}; choose from: {supported}")
+    return tuple(CANDIDATE_BY_NAME[name] for name in names)
 
 
 def _sample_bundles() -> list[tuple[str, str, int]]:
@@ -119,7 +133,7 @@ def test_policy_model_comparison(tmp_path: Path, capsys) -> None:
 
     policy_module = load_policy_module()
     results = []
-    for candidate in CANDIDATES:
+    for candidate in _selected_candidates():
         policy = policy_module.PiiMaskingPolicy(model_name=candidate.model_id)
         load_started = time.perf_counter()
         policy._redact_text("Patient Jane Doe, DOB 1985-03-15", {})
