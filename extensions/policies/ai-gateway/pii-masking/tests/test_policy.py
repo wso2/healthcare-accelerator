@@ -100,6 +100,21 @@ class TestPipelineCache:
         assert backend.create_privacy_filter_pipeline.call_args_list == [call("model-a"), call("model-b")]
 
 
+class TestPolicyConfiguration:
+    def test_uses_model_from_policy_parameters(self) -> None:
+        policy_module = load_policy_module()
+
+        assert policy_module.get_policy({}, {"model": "OpenMed/custom-model"}).model_name == "OpenMed/custom-model"
+        assert policy_module.get_policy({}, {}).model_name == policy_module.MODEL_NAME
+
+    @pytest.mark.parametrize("params", [{"model": ""}, {"model": 42}])
+    def test_rejects_invalid_model_parameter(self, params) -> None:
+        policy_module = load_policy_module()
+
+        with pytest.raises(ValueError, match="model parameter"):
+            policy_module.get_policy({}, params)
+
+
 class TestRequestRedactionScope:
     def test_redacts_all_request_content_and_tool_metadata(self) -> None:
         policy_module = load_policy_module()

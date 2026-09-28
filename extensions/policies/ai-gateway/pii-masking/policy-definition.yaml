@@ -12,7 +12,11 @@ description: |
 parameters:
   type: object
   additionalProperties: false
-  properties: {}
+  properties:
+    model:
+      type: string
+      description: OpenMed model identifier used for PII detection.
+      default: OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1
 
 systemParameters:
   type: object

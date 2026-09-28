@@ -241,7 +241,10 @@ class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
 
 
 def get_policy(metadata, params):
-    return PiiMaskingPolicy()
+    model_name = (params or {}).get("model", MODEL_NAME)
+    if not isinstance(model_name, str) or not model_name.strip():
+        raise ValueError("the pii-masking model parameter must be a non-empty string")
+    return PiiMaskingPolicy(model_name=model_name)
 
 
 def _warm_up_model() -> None:

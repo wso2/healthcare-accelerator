@@ -69,8 +69,30 @@ same way you would any gateway policy.
 
 ## Configuration
 
-The policy takes no parameters — it works out of the box. See
-`policy-definition.yaml` for the (empty) parameter schema.
+The policy accepts a `model` parameter containing any compatible OpenMed model
+identifier. If omitted, it uses
+`OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1`. The value is passed to
+OpenMed when the policy is initialized, so the model can be selected in the
+gateway policy YAML without changing Python code. See `policy-definition.yaml`
+for the parameter schema.
+
+For example:
+
+```yaml
+name: pii-masking
+parameters:
+  model: OpenMed/OpenMed-PII-ClinicalE5-Small-33M-v1
+```
+
+The validated local comparison used these compatible model identifiers:
+
+- `OpenMed/OpenMed-PII-ClinicalE5-Small-33M-v1`
+- `OpenMed/OpenMed-PII-LiteClinical-Small-66M-v1`
+- `OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1`
+- `OpenMed/OpenMed-PII-SuperMedical-Base-125M-v1`
+
+Other OpenMed checkpoints may work when supported by the pinned OpenMed
+runtime, but they should be validated locally before deployment.
 
 ## Limitations
 
