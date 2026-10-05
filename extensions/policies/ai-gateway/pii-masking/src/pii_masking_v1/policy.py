@@ -41,8 +41,8 @@ SKIP_KEYS = {"model", "role", "tool_call_id"}
 TOOL_CALL_KEYS = {"id", "type"}
 TOOL_FUNCTION_KEYS = {"name"}
 
-_MODEL_LOADER: Any | None = None
-_MODEL_LOADER_LOCK = threading.Lock()
+_PIPELINES: dict[str, Any] = {}
+_PIPELINE_LOCK = threading.Lock()
 
 logger = logging.getLogger("pii-masking")
 logger.setLevel(logging.INFO)
@@ -52,25 +52,27 @@ logger.addHandler(_handler)
 logger.propagate = False
 
 
-def _model_loader() -> Any:
-    global _MODEL_LOADER
-    if _MODEL_LOADER is None:
-        with _MODEL_LOADER_LOCK:
-            if _MODEL_LOADER is None:
-                from openmed.core.models import ModelLoader
+def _privacy_filter_pipeline(model_name: str = MODEL_NAME) -> Any:
+    if model_name not in _PIPELINES:
+        with _PIPELINE_LOCK:
+            if model_name not in _PIPELINES:
+                from openmed.core.backends import create_privacy_filter_pipeline
 
-                _MODEL_LOADER = ModelLoader()
-    return _MODEL_LOADER
+                _PIPELINES[model_name] = create_privacy_filter_pipeline(model_name)
+    return _PIPELINES[model_name]
 
 
-def _extract_pii(text_blob: str) -> Any:
+def _uses_privacy_filter(model_name: str) -> bool:
+    return "privacy-filter" in model_name.lower()
+
+
+def _extract_pii(text_blob: str, model_name: str = MODEL_NAME) -> Any:
     from openmed.core.pii import _extract_pii_batch
 
-    return _extract_pii_batch(
-        [text_blob],
-        model_name=MODEL_NAME,
-        loader=_model_loader(),
-    )[0]
+    kwargs = {"model_name": model_name}
+    if _uses_privacy_filter(model_name):
+        kwargs["privacy_filter_pipeline"] = _privacy_filter_pipeline(model_name)
+    return _extract_pii_batch([text_blob], **kwargs)[0]
 
 
 class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
@@ -85,8 +87,16 @@ class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
     response is passed through unchanged.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, model_name: str = MODEL_NAME) -> None:
+        self.model_name = model_name
         self._mappings: dict[str, dict[str, str]] = {}
+        if model_name != MODEL_NAME:
+            threading.Thread(
+                target=_warm_up_model,
+                args=(model_name,),
+                name="openmed-configured-warmup",
+                daemon=True,
+            ).start()
 
     def mode(self) -> ProcessingMode:
         return ProcessingMode(
@@ -99,7 +109,7 @@ class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
             return text_blob
         from openmed.service.privacy_gateway import coerce_gateway_entities, redact_text
 
-        entities = coerce_gateway_entities(_extract_pii(text_blob), text_blob)
+        entities = coerce_gateway_entities(_extract_pii(text_blob, self.model_name), text_blob)
         session = redact_text(text_blob, entities, request_id=uuid.uuid4().hex)
         mapping.update(session.placeholder_map)
         return session.redacted_text
@@ -241,14 +251,17 @@ class PiiMaskingPolicy(RequestPolicy, ResponsePolicy):
 
 
 def get_policy(metadata, params):
-    return PiiMaskingPolicy()
+    model_name = (params or {}).get("model", MODEL_NAME)
+    if not isinstance(model_name, str) or not model_name.strip():
+        raise ValueError("the pii-masking model parameter must be a non-empty string")
+    return PiiMaskingPolicy(model_name=model_name)
 
 
-def _warm_up_model() -> None:
+def _warm_up_model(model_name: str = MODEL_NAME) -> None:
     try:
         started = time.perf_counter()
-        _extract_pii("warm up")
-        logger.info("OpenMed model loaded in %.1f s", time.perf_counter() - started)
+        _extract_pii("warm up", model_name)
+        logger.info("OpenMed model %s loaded in %.1f s", model_name, time.perf_counter() - started)
     except Exception:
         logger.exception("model warm-up failed; the first request will load the model instead")
 
