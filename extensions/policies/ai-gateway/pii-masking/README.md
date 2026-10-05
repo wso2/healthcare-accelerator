@@ -16,6 +16,12 @@ On the response, the placeholders the model echoes back are swapped for the
 original values, so the client sees a coherent reply while the provider only
 ever saw redacted text.
 
+> **Note:** The model is a de-identification (PII) model, so it masks
+> identifiers and PHI - including clinical dates, times, and ages - but not
+> clinical concepts such as conditions, medications, or lab tests. OpenMed
+> ships separate medical NER models for those (`OpenMed-NER-DiseaseDetect-*`,
+> `OpenMed-NER-PharmaDetect-*`, and similar); this policy does not use them.
+
 ## When to use it
 
 - You send PHI/PII to a third-party LLM (e.g. OpenAI) and need it
