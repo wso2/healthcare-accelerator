@@ -1,6 +1,6 @@
 # iam-service-extensions
 
-Ballerina pre-issue-access-token action service for the consent system. Runs on port **9093**. Intercepts token issuance, validates requested scopes against the user's OpenFGC consent record, and injects patient/encounter/consent_id claims.
+Ballerina pre-issue-access-token action service for the consent system. Runs on port **9093**. Intercepts token issuance, validates requested scopes against the user's consent record in the WSO2 IS consent management service (IS 7.3.0+), and injects patient/encounter/consent_id claims.
 
 ## Architecture
 
@@ -10,7 +10,7 @@ IDP (WSO2 IS / Asgardeo)
       ▼
 iam-service-extensions  :9093
       │
-      ├── OpenFGC  — consent record lookup (by sessionDataKeyConsent)
+      ├── IS consent management API — consent record lookup (by sessionDataKeyConsent)
       └── SCIM     — patient ID resolution fallback (optional)
       └── EHR      — launch context resolution (optional)
 ```
@@ -21,17 +21,19 @@ iam-service-extensions  :9093
 |------|---------|
 | `configurables.bal` | All configurables |
 | `types.bal` | Request/response record types |
-| `client.bal` | OpenFGC + SCIM + EHR HTTP clients, token caching |
+| `client.bal` | IS consent API + SCIM + EHR HTTP clients, token caching |
 | `utils.bal` | Scope helpers, patient ID extraction, URI encoding |
 | `service.bal` | POST `/pre-issue-access-token` handler |
-| `tests/` | Mock OpenFGC + SCIM, service tests |
+| `tests/` | Mock IS consent API + SCIM, service tests |
 
 ## Processing sequence
 
-1. Extract `sessionDataKeyConsent` from `event.session`
-2. Look up consent record in OpenFGC via `GET /consents/attributes?key=sessionDataKeyConsent&value=<key>`
+1. Extract `sessionDataKeyConsent` from `event.session` (not sent by every IS version)
+2. Look up the ACTIVE consent record in WSO2 IS
+   - With a session key: `GET {isBaseUrl}/api/identity/consent-mgt/v2.0/consents?filter=properties.sessionDataKeyConsent eq <key>&state=ACTIVE`
+   - Without one (user-bound grants such as `authorization_code` and `refresh_token`): `GET .../consents?userId=<event.user.id>&relation=SUBJECT&serviceId=<consentServiceId>&state=ACTIVE&filter=properties.clientId eq <event.request.clientId>`. `consent-app-bff` stores the OAuth `client_id` as the consent property `clientId`; with `singleConsentPerUser` there is one active consent per user
    - No consent found → SUCCESS with no operations (pass-through)
-3. Fetch consent record → extract `authorizations[].resources.scopes` as approved scopes
+3. Fetch the consent (`GET /consents/{id}`) → extract the approved scopes from the `approvedScopes` consent property (space separated, written by `consent-app-bff`); consented purpose element names are also treated as approved scopes. Non-`ACTIVE` consents yield no scopes
 4. Extract internal `OH_patient/<id>` and `OH_launch/<id>` scopes (consumed, not forwarded)
 5. Validate each requested token scope:
    - Must be in approved scopes or `alwaysAllowedScopes`
@@ -54,22 +56,24 @@ bal run
 
 | Key | Description |
 |-----|-------------|
-| `openfgcBaseUrl` | OpenFGC base URL |
-| `orgId` / `tppClientId` | OpenFGC request headers |
+| `isBaseUrl` | WSO2 IS (7.3.0+) base URL, used for consent lookup, SCIM and token introspect |
+| `scimClientId` / `scimClientSecret` | Credentials of the management application, used to call the consent management API and SCIM |
+
+The management application must be authorized for the Consent Management API with the `internal_consent_mgt_consent_view` scope (and `internal_user_mgt_view` for SCIM). The service requests a single token with both scopes. No separate consent store needs to be deployed.
 
 ### Optional config
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `ehrContextResolveUrl` | `""` | EHR launch context endpoint; skipped when blank |
-| `isBaseUrl` | `""` | IS base URL used for SCIM lookup and token introspect |
-| `scimClientId` / `scimClientSecret` | `""` | OAuth2 credentials for SCIM token |
-| `scimTokenEndpoint` | `""` | Defaults to `{isBaseUrl}/oauth2/token` |
+| `consentApiPath` | `"/api/identity/consent-mgt/v2.0"` | Consent management API path on IS; use `/t/<tenant-domain>/api/identity/consent-mgt/v2.0` for tenants |
+| `scimTokenEndpoint` | `""` | Management app token endpoint. Defaults to `{isBaseUrl}/oauth2/token` |
 | `scimPatientGroupName` | `"patient"` | Group name used to identify patient users |
 | `fhirUserAttributeName` | `"fhirUser"` | SCIM custom attribute holding the FHIR user reference |
 | `patientAttributeName` | `"patient"` | SCIM custom attribute holding the patient resource reference |
 | `keystorePath` | `""` | Path to the keystore file for the HTTPS listener; HTTP used when blank |
 | `keystorePassword` | `""` | Password to open the keystore |
+| `consentServiceId` | `smart-on-fhir` | Must match `serviceId` of `consent-app-bff`; used to find the user's consent when IS sends no `sessionDataKeyConsent` |
 | `alwaysAllowedScopes` | `["openid"]` | Scopes that bypass consent checks |
 
 ### Example Config.toml
@@ -78,13 +82,10 @@ bal run
 hostname = "localhost"
 port = 9093
 
-openfgcBaseUrl = "http://localhost:8080"
-orgId = "<org-id>"
-tppClientId = "<tpp-client-id>"
-
 ehrContextResolveUrl = "https://ehr.example.com/launch-context"
 
-isBaseUrl = "https://api.asgardeo.io/t/<tenant>"
+isBaseUrl = "https://localhost:9443"
+# Management application (authorized for Consent Management API + SCIM)
 scimClientId = "<client-id>"
 scimClientSecret = "<client-secret>"
 
@@ -101,4 +102,4 @@ alwaysAllowedScopes = ["openid", "fhirUser"]
 bal test
 ```
 
-Tests use in-process mock OpenFGC and SCIM listeners defined in `tests/`.
+Tests use in-process mock IS consent API and SCIM listeners defined in `tests/`.

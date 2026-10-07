@@ -31,15 +31,40 @@ function buildIdpClientConfig() returns http:ClientConfiguration {
 
 // Plain HTTP clients — auth headers are set manually so 401s can be intercepted.
 final http:Client idpClient = check new (idpBaseUrl, buildIdpClientConfig());
-final http:Client openfgcClient = check new (openfgcBaseUrl);
 
-// In-memory cache of consent purposes fetched from OpenFGC at startup.
+// In-memory cache of consent purposes fetched from WSO2 IS at startup.
 // Keyed by purpose name. Populated by fetchAndCachePurposes() in init().
 isolated map<CachedPurpose> purposeCache = {};
 
-// Fetches all configured purpose definitions from OpenFGC and stores them in
-// purposeCache. Called once at module init — fails hard if any purpose is missing.
-function fetchAndCachePurposes() returns error? {
+// Calls the WSO2 IS consent management API with a bearer token from the management
+// application; retries once with a fresh token on 401. `path` is relative to consentApiBasePath.
+isolated function callConsentApi(http:Method method, string path, json? payload = ()) returns http:Response|error {
+    string fullPath = consentApiBasePath + path;
+    string token = check getIdpToken();
+    http:Response response = check idpClient->execute(method, fullPath, payload, {"Authorization": string `Bearer ${token}`});
+    if response.statusCode == http:STATUS_UNAUTHORIZED {
+        log:printWarn("Received 401 from consent API — retrying with fresh token", path = fullPath);
+        token = check getIdpToken();
+        response = check idpClient->execute(method, fullPath, payload, {"Authorization": string `Bearer ${token}`});
+    }
+    log:printDebug("[Consent API] response", method = method, path = fullPath, statusCode = response.statusCode);
+    return response;
+}
+
+// Loads the purpose cache on first use when it was not populated at startup.
+isolated function ensurePurposesCached() returns error? {
+    boolean loaded;
+    lock {
+        loaded = purposeCache.length() > 0;
+    }
+    if !loaded {
+        check fetchAndCachePurposes();
+    }
+}
+
+// Fetches all configured purpose definitions (and their elements) from WSO2 IS and stores
+// them in purposeCache. Called once at module init — fails hard if any purpose is missing.
+isolated function fetchAndCachePurposes() returns error? {
     // Collect all distinct purpose names: scope purpose + all purpose-flow purposes
     string[] namesToFetch = [scopeConsent.purposeName];
     foreach PurposeConsentConfig p in purposeConsent {
@@ -55,47 +80,65 @@ function fetchAndCachePurposes() returns error? {
         }
     }
 
-    map<string|string[]> headers = {"org-id": orgId, "TPP-client-id": tppClientId};
-
     foreach string name in namesToFetch {
-        string encodedName = check url:encode(name, "UTF-8");
-        string path = string `/consent-purposes?name=${encodedName}&clientIds=${tppClientId}`;
-        log:printDebug("[OpenFGC] Fetching consent purpose at startup", purposeName = name);
+        string filter = check url:encode(string `name eq ${name}`, "UTF-8");
+        log:printDebug("[Consent API] Fetching consent purpose at startup", purposeName = name);
 
-        http:Response resp = check openfgcClient->get(path, headers);
-        if resp.statusCode != http:STATUS_OK {
-            string|error body = resp.getTextPayload();
+        http:Response listResp = check callConsentApi(http:GET, string `/purposes?filter=${filter}`);
+        if listResp.statusCode != http:STATUS_OK {
+            string|error body = listResp.getTextPayload();
             string bodyStr = body is string ? body : "";
-            return error(string `Failed to fetch consent purpose '${name}': HTTP ${resp.statusCode}: ${bodyStr}`);
+            return error(string `Failed to fetch consent purpose '${name}': HTTP ${listResp.statusCode}: ${bodyStr}`);
+        }
+        IsPurposeListResponse purposes = check (check listResp.getJsonPayload()).cloneWithType();
+
+        string? purposeId = ();
+        foreach IsPurposeSummary summary in purposes.Purposes {
+            if summary.name == name {
+                purposeId = summary.id;
+                break;
+            }
+        }
+        if purposeId is () {
+            return error(string `Consent purpose '${name}' not found in WSO2 IS`);
         }
 
-        json purposesJson = check resp.getJsonPayload();
-        OpenFGCConsentPurposesResponse purposesResp = check purposesJson.cloneWithType();
-
-        if purposesResp.data.length() == 0 {
-            return error(string `Consent purpose '${name}' not found in OpenFGC`);
+        // The purpose resource carries the elements of its latest version
+        http:Response purposeResp = check callConsentApi(http:GET, string `/purposes/${purposeId}`);
+        if purposeResp.statusCode != http:STATUS_OK {
+            string|error body = purposeResp.getTextPayload();
+            string bodyStr = body is string ? body : "";
+            return error(string `Failed to fetch consent purpose '${name}': HTTP ${purposeResp.statusCode}: ${bodyStr}`);
         }
+        IsPurpose fetched = check (check purposeResp.getJsonPayload()).cloneWithType();
 
-        OpenFGCConsentPurpose fetched = purposesResp.data[0];
         string[] elementNames = [];
+        map<string> elementIds = {};
         boolean anyMandatory = false;
-        foreach OpenFGCPurposeElement e in fetched.elements {
+        foreach IsPurposeElement e in fetched.elements {
+            string? elementId = e.id;
+            if elementId is () {
+                return error(string `Element '${e.name}' of consent purpose '${name}' has no id`);
+            }
             elementNames.push(e.name);
-            if e.isMandatory {
+            elementIds[e.name] = elementId;
+            if e.mandatory {
                 anyMandatory = true;
             }
         }
 
         CachedPurpose cached = {
+            id: purposeId,
             name: fetched.name,
             description: fetched.description,
             elementNames: elementNames.cloneReadOnly(),
+            elementIds: elementIds.cloneReadOnly(),
             anyMandatory: anyMandatory
         };
         lock {
             purposeCache[name] = cached;
         }
-        log:printDebug("[OpenFGC] Consent purpose cached", purposeName = name, elementCount = elementNames.length());
+        log:printDebug("[Consent API] Consent purpose cached", purposeName = name, elementCount = elementNames.length());
     }
 }
 
@@ -135,7 +178,15 @@ isolated function getIdpToken() returns string|error {
         tokenUrl: tokenUrl,
         clientId: clientId,
         clientSecret: clientSecret,
-        scopes: ["internal_user_mgt_view", "internal_user_mgt_list"]
+        scopes: [
+            "internal_user_mgt_view",
+            "internal_user_mgt_list",
+            "internal_consent_mgt_purpose_view",
+            "internal_consent_mgt_element_view",
+            "internal_consent_mgt_consent_create",
+            "internal_consent_mgt_consent_view",
+            "internal_consent_mgt_consent_update"
+        ]
     };
     if consentContextApiTrustStorePath != "" && consentContextApiTrustStorePassword != "" {
         grantConfig.clientConfig = {

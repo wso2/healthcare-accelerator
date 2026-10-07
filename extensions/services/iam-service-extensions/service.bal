@@ -58,13 +58,21 @@ service / on httpListener {
         }
         string[]? filteredTokenScopes = permittedTokenScopes.length() > 0 ? permittedTokenScopes : ();
 
-        // ── 1. Load approved scopes from OpenFGC ─────────────────────────────
+        // ── 1. Load approved scopes from IS consent management ─────────────────────────────
         string[] approvedScopes = [];
         string? resolvedConsentId = ();
-        if sessionDataKeyConsent is string && sessionDataKeyConsent != "" {
-            string?|error consentIdResult = getConsentIdBySessionKey(sessionDataKeyConsent);
+        // IS does not send sessionDataKeyConsent in the token flow. For user-bound grants, find the consent by
+        // the user id and client_id of the token request instead (both are stored/known at consent time).
+        string? tokenUserId = reqBody.event.user?.id;
+        boolean lookupByUserAndClient = !(sessionDataKeyConsent is string && sessionDataKeyConsent != "")
+            && grantType != "client_credentials" && tokenUserId is string && tokenUserId != "";
+        boolean lookupConsent = lookupByUserAndClient || (sessionDataKeyConsent is string && sessionDataKeyConsent != "");
+        if lookupConsent {
+            string?|error consentIdResult = lookupByUserAndClient
+                ? getConsentIdByUserAndClient(<string>tokenUserId, reqBody.event.request.clientId)
+                : getConsentIdBySessionKey(<string>sessionDataKeyConsent);
             if consentIdResult is error {
-                log:printError(string `[${flowId}]: OpenFGC attribute lookup failed: ${consentIdResult.message()}`);
+                log:printError(string `[${flowId}]: consent lookup failed: ${consentIdResult.message()}`);
                 return <ErrorResponseInternalServerError>{
                     body: {
                         actionStatus: "ERROR",
@@ -82,7 +90,7 @@ service / on httpListener {
             resolvedConsentId = consentIdResult;
             string[]|error scopesResult = getApprovedScopesByConsentId(consentIdResult);
             if scopesResult is error {
-                log:printError(string `[${flowId}]: OpenFGC consent fetch failed: ${scopesResult.message()}`);
+                log:printError(string `[${flowId}]: consent fetch failed: ${scopesResult.message()}`);
                 return <ErrorResponseInternalServerError>{
                     body: {
                         actionStatus: "ERROR",
@@ -94,7 +102,7 @@ service / on httpListener {
             approvedScopes = scopesResult;
         }
 
-        log:printDebug(string `[${flowId}] approved scopes from OpenFGC`, scopes = approvedScopes.toString());
+        log:printDebug(string `[${flowId}] approved scopes from IS consent management`, scopes = approvedScopes.toString());
 
         // ── 2. Extract OH_* internal scopes; accumulate validated public scopes
         string[] modifiedScopes = [];
@@ -118,7 +126,7 @@ service / on httpListener {
         // Consent approval check only applies when a consent record was resolved.
         // For client_credentials (no sessionDataKeyConsent) scope filtering is
         // handled entirely by the grant-type check in step 0.
-        boolean hasConsent = sessionDataKeyConsent is string && sessionDataKeyConsent != "" && resolvedConsentId is string;
+        boolean hasConsent = resolvedConsentId is string;
         log:printInfo(string `[${flowId}] Processing scopes with consent check: ${hasConsent}`);
         if filteredTokenScopes is string[] {
             foreach string scope in filteredTokenScopes {

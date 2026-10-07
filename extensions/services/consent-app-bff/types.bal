@@ -21,35 +21,46 @@ type ScopeConsentConfig record {|
 |};
 
 // Only the purpose name is configured here — description, mandatory flag, and
-// elements are fetched from OpenFGC at startup via /consent-purposes.
+// elements are fetched from WSO2 IS at startup via the consent management API.
 type PurposeConsentConfig record {|
     string purposeName;
 |};
 
-// ─── OpenFGC /consent-purposes response types ─────────────────────────────────
+// ─── IS consent API: purpose response types ─────────────────────────────────
+// Open records: extra fields returned by WSO2 IS are silently ignored.
 
-type OpenFGCPurposeElement record {
+type IsPurposeSummary record {
+    string? id = ();
     string name;
-    boolean isMandatory;
 };
 
-type OpenFGCConsentPurpose record {
-    string id?;
+type IsPurposeListResponse record {
+    IsPurposeSummary[] Purposes = [];
+};
+
+type IsPurposeElement record {
+    string? id = ();
     string name;
-    string description?;
-    OpenFGCPurposeElement[] elements;
+    string? displayName = ();
+    boolean mandatory = false;
 };
 
-type OpenFGCConsentPurposesResponse record {
-    OpenFGCConsentPurpose[] data;
+type IsPurpose record {
+    string? id = ();
+    string name;
+    string? description = ();
+    IsPurposeElement[] elements = [];
 };
 
-// In-memory representation of a purpose fetched from OpenFGC at startup.
+// In-memory representation of a purpose fetched from WSO2 IS at startup.
 // readonly so it can be transferred into/out of isolated lock blocks without cloning.
 type CachedPurpose readonly & record {|
+    string id;
     string name;
     string description?;
     string[] elementNames;
+    // element name -> element id (consents bind elements by id)
+    map<string> elementIds;
     boolean anyMandatory;
 |};
 
@@ -177,84 +188,55 @@ type ExistingConsentData record {|
     map<string[]> consentedElements;   // purpose flow
 |};
 
-// ─── OpenFGC payload types ────────────────────────────────────────────────────
+// ─── IS consent API: consent payload types ───────────────────────────────────
 
-type OpenFGCConsentElementApproval record {|
-    string name;
-    boolean isUserApproved;
-|};
-
-type OpenFGCConsentPurposeItem record {|
-    string name;
-    OpenFGCConsentElementApproval[] elements;
-|};
-
-type OpenFGCAuthorizationResources record {
-    string spId;
-    string application;
-    string[] scopes?;
-};
-
-type OpenFGCAuthorization record {|
-    string userId;
-    string 'type;
-    string status;
-    OpenFGCAuthorizationResources resources;
-|};
-
-type OpenFGCConsentCreatePayload record {|
-    string 'type;
-    OpenFGCConsentPurposeItem[] purposes;
-    OpenFGCAuthorization[] authorizations;
-    int validityTime?;
-    map<string> attributes?;
-|};
-
-type OpenFGCConsentCreatedResponse record {
-    string id?;
-    string status?;
-};
-
-// ─── OpenFGC search response types ───────────────────────────────────────────
-
-// Open records: extra fields from OpenFGC are silently ignored.
-
-type OpenFGCSearchElement record {
-    string name;
-    boolean isUserApproved;
-};
-
-type OpenFGCSearchPurpose record {
-    string name;
-    OpenFGCSearchElement[] elements;
-};
-
-type OpenFGCSearchResources record {
-    string spId?;
-    string application?;
-    json scopes?;
-};
-
-type OpenFGCSearchAuthorization record {
-    string userId?;
-    string 'type?;
-    string status?;
-    OpenFGCSearchResources resources?;
-};
-
-type OpenFGCSearchRecord record {
+type IsConsentElementRef record {|
     string id;
-    int validityTime?;
-    OpenFGCSearchPurpose[] purposes?;
-    OpenFGCSearchAuthorization[] authorizations?;
-    map<string> attributes?;
-};
-
-type OpenFGCSearchResponse record {
-    OpenFGCSearchRecord[] data;
-};
-
-type OpenFGCConsentAttributeSearchResponse record {|
-    string[] consentIds;
-    int count;
 |};
+
+type IsConsentPurposeBinding record {|
+    string id;
+    IsConsentElementRef[] elements;
+|};
+
+type IsConsentCreateRequest record {|
+    string subjectId;
+    string serviceId;
+    // IS 7.3.0 stores the language in a NOT NULL column, so it must always be sent
+    string language = "en";
+    IsConsentPurposeBinding[] purposes;
+    // Milliseconds since epoch; omitted for consents that never expire
+    int expiryTime?;
+    map<string> properties?;
+|};
+
+type IsConsentCreatedResponse record {
+    string id;
+};
+
+// ─── IS consent API: consent response types ──────────────────────────────────
+
+type IsConsentSummary record {
+    string id;
+    string? state = ();
+};
+
+type IsConsentListResponse record {
+    IsConsentSummary[] Consents = [];
+};
+
+type IsConsentedElement record {
+    string name;
+};
+
+type IsConsentedPurpose record {
+    string name;
+    IsConsentedElement[] elements = [];
+};
+
+type IsConsentDetail record {
+    string id;
+    int? expiryTime = ();
+    IsConsentedPurpose[] purposes = [];
+    map<string>? properties = ();
+};

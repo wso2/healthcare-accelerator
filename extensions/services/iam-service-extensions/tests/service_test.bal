@@ -44,10 +44,10 @@ function buildPayload(string[] scopes, string grantType, string sessionKey, stri
     };
 }
 
-// ─── Test: scope approval from OpenFGC ───────────────────────────────────────
+// ─── Test: scope approval from IS consent management ─────────────────────────
 
 @test:Config {}
-function testScopeApprovalFromOpenFGC() returns error? {
+function testScopeApprovalFromIsConsent() returns error? {
     // mockApprovedScopes = ["patient/Patient.read", "patient/Observation.read", "openid"]
     // requesting patient/Patient.read → should be in final token
     json payload = buildPayload(
@@ -152,7 +152,7 @@ function testSystemScopeGrantTypeEnforcement() returns error? {
 
 @test:Config {}
 function testNoConsentFound() returns error? {
-    mockConsentId = "";  // Simulate no consent in OpenFGC
+    mockConsentId = "";  // Simulate no consent in IS
 
     json payload = buildPayload(
         ["patient/Patient.read"],
@@ -209,4 +209,158 @@ function testAlwaysAllowedScopes() returns error? {
 
     // Reset
     mockApprovedScopes = ["patient/Patient.read", "patient/Observation.read", "openid"];
+}
+
+// ─── Tests: consent lookup by user id and client_id (IS sends no sessionDataKeyConsent) ──
+
+// Posts a pre-issue-access-token event without a session object and returns the response body.
+function postWithoutSession(string grantType, string? userId, string[] scopes) returns [int, map<json>]|error {
+    map<json> event = {
+        "request": {"grantType": grantType, "clientId": "test-client", "scopes": scopes},
+        "tenant": {"id": "1", "name": "carbon.super"},
+        "accessToken": {"tokenType": "JWT", "claims": [], "scopes": scopes}
+    };
+    if userId is string {
+        event["user"] = {"id": userId};
+    }
+    http:Response response = check iamClient->post("/pre-issue-access-token", {"actionType": "PRE_ISSUE_ACCESS_TOKEN", "event": event});
+    json body = check response.getJsonPayload();
+    return [response.statusCode, check body.ensureType()];
+}
+
+function resetConsentMock() {
+    mockConsentId = "test-consent-id";
+    mockConsentState = "ACTIVE";
+    mockConsentListStatus = 200;
+    mockApprovedScopes = ["patient/Patient.read", "patient/Observation.read", "openid"];
+    lastConsentListQuery = "";
+}
+
+// Returns the value of the claim added to the token, or () if it was not added.
+function findAddedClaim(map<json> body, string claimName) returns json? {
+    json[] ops = <json[]>(body["operations"] ?: []);
+    foreach json op in ops {
+        map<json> opMap = <map<json>>op;
+        if opMap["op"] == "add" && opMap["path"].toString() == "/accessToken/claims/-" {
+            json val = opMap["value"] ?: {};
+            if val is map<json> && val["name"] == claimName {
+                return val["value"];
+            }
+        }
+    }
+    return ();
+}
+
+function findAddedScopes(map<json> body) returns string[] {
+    string[] scopes = [];
+    json[] ops = <json[]>(body["operations"] ?: []);
+    foreach json op in ops {
+        map<json> opMap = <map<json>>op;
+        if opMap["op"] == "add" && opMap["path"].toString() == "/accessToken/scopes/-" {
+            scopes.push((opMap["value"] ?: "").toString());
+        }
+    }
+    return scopes;
+}
+
+@test:Config {}
+function testConsentLookupByUserAndClient() returns error? {
+    resetConsentMock();
+    [int, map<json>] [status, body] = check postWithoutSession("authorization_code", "user-1", ["patient/Patient.read", "openid"]);
+    test:assertEquals(status, 200);
+    test:assertEquals(lastConsentListQuery, "user-1|properties.clientId eq test-client");
+    test:assertEquals(findAddedClaim(body, "consent_id"), "test-consent-id");
+}
+
+@test:Config {}
+function testLookupByUserAndClientFiltersUnapprovedScopes() returns error? {
+    resetConsentMock();
+    mockApprovedScopes = ["patient/Patient.r", "openid"];
+    [int, map<json>] [status, body] = check postWithoutSession(
+        "authorization_code", "user-1", ["patient/Patient.r", "patient/Observation.r", "openid"]);
+    test:assertEquals(status, 200);
+    string[] scopes = findAddedScopes(body);
+    test:assertTrue(scopes.indexOf("patient/Patient.r") is int, "approved scope must be kept");
+    test:assertTrue(scopes.indexOf("openid") is int, "approved scope must be kept");
+    test:assertTrue(scopes.indexOf("patient/Observation.r") is (), "scope the user did not approve must be dropped");
+    resetConsentMock();
+}
+
+@test:Config {}
+function testLookupByUserAndClientNoConsentPassesThrough() returns error? {
+    resetConsentMock();
+    mockConsentId = "";
+    [int, map<json>] [status, body] = check postWithoutSession("authorization_code", "user-1", ["patient/Patient.read"]);
+    test:assertEquals(status, 200);
+    test:assertEquals(lastConsentListQuery, "user-1|properties.clientId eq test-client");
+    test:assertEquals(body["actionStatus"], "SUCCESS");
+    test:assertEquals(findAddedClaim(body, "consent_id"), ());
+    test:assertEquals(findAddedScopes(body).length(), 0, "no consent found: token is passed through untouched");
+    resetConsentMock();
+}
+
+@test:Config {}
+function testLookupByUserAndClientIgnoresInactiveConsent() returns error? {
+    resetConsentMock();
+    mockConsentState = "REVOKED";
+    [int, map<json>] [status, body] = check postWithoutSession("authorization_code", "user-1", ["patient/Patient.read"]);
+    test:assertEquals(status, 200);
+    test:assertEquals(findAddedClaim(body, "consent_id"), ());
+    resetConsentMock();
+}
+
+@test:Config {}
+function testLookupByUserAndClientAppliesToRefreshGrant() returns error? {
+    resetConsentMock();
+    [int, map<json>] [status, body] = check postWithoutSession("refresh_token", "user-1", ["patient/Patient.read", "openid"]);
+    test:assertEquals(status, 200);
+    test:assertEquals(lastConsentListQuery, "user-1|properties.clientId eq test-client");
+    test:assertEquals(findAddedClaim(body, "consent_id"), "test-consent-id");
+}
+
+@test:Config {}
+function testNoLookupForClientCredentials() returns error? {
+    resetConsentMock();
+    [int, map<json>] [status, _] = check postWithoutSession("client_credentials", "user-1", ["openid"]);
+    test:assertEquals(status, 200);
+    test:assertEquals(lastConsentListQuery, "", "client_credentials tokens are not tied to a user consent");
+}
+
+@test:Config {}
+function testNoLookupWithoutUser() returns error? {
+    resetConsentMock();
+    [int, map<json>] [status, body] = check postWithoutSession("authorization_code", (), ["openid"]);
+    test:assertEquals(status, 200);
+    test:assertEquals(lastConsentListQuery, "", "no user id in the event: nothing to look up");
+    test:assertEquals(findAddedClaim(body, "consent_id"), ());
+}
+
+@test:Config {}
+function testSessionKeyTakesPrecedenceOverUserAndClient() returns error? {
+    resetConsentMock();
+    json payload = buildPayload(["patient/Patient.read", "openid"], "authorization_code", "key-xyz", "user-1");
+    http:Response response = check iamClient->post("/pre-issue-access-token", payload);
+    test:assertEquals(response.statusCode, 200);
+    test:assertEquals(lastConsentListQuery, "|properties.sessionDataKeyConsent eq key-xyz",
+            "when IS does send the session key it is used and the user/client lookup is skipped");
+}
+
+@test:Config {}
+function testLookupByUserAndClientConsentApiFailure() returns error? {
+    resetConsentMock();
+    mockConsentListStatus = 500;
+    http:Response response = check iamClient->post("/pre-issue-access-token", {
+        "actionType": "PRE_ISSUE_ACCESS_TOKEN",
+        "event": {
+            "request": {"grantType": "authorization_code", "clientId": "test-client", "scopes": ["openid"]},
+            "tenant": {"id": "1", "name": "carbon.super"},
+            "accessToken": {"tokenType": "JWT", "claims": [], "scopes": ["openid"]},
+            "user": {"id": "user-1"}
+        }
+    });
+    test:assertEquals(response.statusCode, 500);
+    json body = check response.getJsonPayload();
+    map<json> bodyMap = check body.ensureType();
+    test:assertEquals(bodyMap["actionStatus"], "ERROR");
+    resetConsentMock();
 }

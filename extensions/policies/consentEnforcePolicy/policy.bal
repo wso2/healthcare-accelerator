@@ -1,12 +1,44 @@
 import ballerina/http;
 import ballerina/jwt;
 import ballerina/log;
+import ballerina/time;
 import choreo/mediation;
 
-http:Client? openFgcClient = ();
+const string CONSENT_API_PATH = "/api/identity/consent-mgt/v2.0";
+const string CONSENT_VIEW_SCOPE = "internal_consent_mgt_consent_view";
+
+http:Client? isClient = ();
+string cachedToken = "";
+int cachedTokenExpiry = 0;
+
+// Returns a cached client-credentials access token for the WSO2 IS consent management API.
+function getIsToken(http:Client isHttp, string clientId, string clientSecret) returns string|error {
+    int now = time:utcNow()[0];
+    lock {
+        if cachedToken != "" && cachedTokenExpiry > now + 30 {
+            return cachedToken;
+        }
+    }
+    http:Request tokenReq = new;
+    tokenReq.setHeader("Authorization", "Basic " + string:toBytes(clientId + ":" + clientSecret).toBase64());
+    tokenReq.setTextPayload("grant_type=client_credentials&scope=" + CONSENT_VIEW_SCOPE, "application/x-www-form-urlencoded");
+    http:Response tokenResp = check isHttp->post("/oauth2/token", tokenReq);
+    if tokenResp.statusCode != 200 {
+        return error("Token endpoint returned " + tokenResp.statusCode.toString());
+    }
+    json body = check tokenResp.getJsonPayload();
+    map<json> bodyMap = check body.ensureType();
+    string accessToken = check bodyMap["access_token"].ensureType();
+    int expiresIn = bodyMap["expires_in"] is int ? check bodyMap["expires_in"].ensureType() : 300;
+    lock {
+        cachedToken = accessToken;
+        cachedTokenExpiry = now + expiresIn;
+    }
+    return accessToken;
+}
 
 @mediation:RequestFlow
-public function enforceRequestFlowConsent(mediation:Context ctx, http:Request req, string openFgcBaseUrl, string orgId, boolean failOnMissingConsent)
+public function enforceRequestFlowConsent(mediation:Context ctx, http:Request req, string isBaseUrl, string clientId, string clientSecret, boolean failOnMissingConsent)
                                 returns http:Response|false|error|() {
 
     log:printInfo("Request Flow Consent Enforcement Policy invoked");
@@ -47,60 +79,63 @@ public function enforceRequestFlowConsent(mediation:Context ctx, http:Request re
     log:printDebug("Extracted consent_id from JWT", consentId = consentId, resourcePath = resourcePath);
 
     // Lazy-init HTTP client
-    http:Client fgcClient;
-    http:Client? existing = openFgcClient;
+    http:Client isHttpClient;
+    http:Client? existing = isClient;
     if existing is http:Client {
-        fgcClient = existing;
+        isHttpClient = existing;
     } else {
-        http:Client|http:ClientError newClient = new (openFgcBaseUrl);
+        http:Client|http:ClientError newClient = new (isBaseUrl);
         if newClient is http:ClientError {
-            log:printError("Failed to init openFGC client", 'error = newClient);
+            log:printError("Failed to init WSO2 IS client", 'error = newClient);
             return forbidden("consent_service_error", "");
         }
-        openFgcClient = newClient;
-        fgcClient = newClient;
-        log:printDebug("Initialized openFGC HTTP client", baseUrl = openFgcBaseUrl);
+        isClient = newClient;
+        isHttpClient = newClient;
+        log:printDebug("Initialized WSO2 IS HTTP client", baseUrl = isBaseUrl);
     }
 
-    // Call openFGC POST /consents/validate
-    log:printDebug("Calling openFGC validate endpoint", consentId = consentId, baseUrl = openFgcBaseUrl);
-    http:Request validateReq = new;
-    validateReq.setJsonPayload({"consentId": consentId});
-    validateReq.setHeader("org-id", orgId);
-    validateReq.setHeader("Accept", "application/json");
-    http:Response|http:ClientError consentResp = fgcClient->post("/consents/validate", validateReq);
+    string|error accessToken = getIsToken(isHttpClient, clientId, clientSecret);
+    if accessToken is error {
+        log:printError("Failed to obtain WSO2 IS access token", 'error = accessToken);
+        return forbidden("consent_service_error", "");
+    }
+    map<string> authHeaders = {"Authorization": "Bearer " + accessToken, "Accept": "application/json"};
 
-    if consentResp is http:ClientError {
-        log:printError("openFGC call failed", consentId = consentId, 'error = consentResp);
+    // Call WSO2 IS GET /consents/{consentId}/validate
+    log:printDebug("Calling WSO2 IS consent validate endpoint", consentId = consentId, baseUrl = isBaseUrl);
+    http:Response|http:ClientError validateResp = isHttpClient->get(CONSENT_API_PATH + "/consents/" + consentId + "/validate", authHeaders);
+
+    if validateResp is http:ClientError {
+        log:printError("WSO2 IS consent validate call failed", consentId = consentId, 'error = validateResp);
         return forbidden("consent_service_error", "");
     }
 
-    if consentResp.statusCode != 200 {
-        log:printInfo("openFGC returned non-200", consentId = consentId, statusCode = consentResp.statusCode);
+    if validateResp.statusCode != 200 {
+        log:printInfo("WSO2 IS returned non-200 for consent validate", consentId = consentId, statusCode = validateResp.statusCode);
         return forbidden("consent_not_found", "");
     }
 
-    // Parse response and check isValid
-    json|error body = consentResp.getJsonPayload();
+    // Parse response and check consent state
+    json|error body = validateResp.getJsonPayload();
     if body is error {
-        log:printError("Failed to parse openFGC response", consentId = consentId);
+        log:printError("Failed to parse WSO2 IS validate response", consentId = consentId);
         return forbidden("consent_service_error", "");
     }
 
     map<json>|error bodyMap = body.ensureType();
     if bodyMap is error {
-        log:printError("Unexpected openFGC response format", consentId = consentId);
+        log:printError("Unexpected WSO2 IS validate response format", consentId = consentId);
         return forbidden("consent_service_error", "");
     }
-    log:printDebug("openFGC raw response", consentId = consentId, body = body.toString());
+    log:printDebug("WSO2 IS validate raw response", consentId = consentId, body = body.toString());
 
-    boolean|error isValid = bodyMap["isValid"].ensureType();
-    if isValid is error {
-        log:printError("Failed to read isValid from openFGC response", consentId = consentId, 'error = isValid);
+    string|error state = bodyMap["state"].ensureType();
+    if state is error {
+        log:printError("Failed to read state from WSO2 IS validate response", consentId = consentId, 'error = state);
         return forbidden("consent_service_error", "");
     }
-    if !isValid {
-        log:printInfo("Consent invalid", consentId = consentId, resourcePath = resourcePath);
+    if state != "ACTIVE" {
+        log:printInfo("Consent not active", consentId = consentId, state = state, resourcePath = resourcePath);
         return forbidden("consent_invalid", "");
     }
 
@@ -114,20 +149,28 @@ public function enforceRequestFlowConsent(mediation:Context ctx, http:Request re
     string fhirResourceType = slashIdx is int ? pathStr.substring(0, slashIdx) : pathStr;
     log:printDebug("Extracted FHIR resource type", resourceType = fhirResourceType, consentId = consentId);
 
-    // Navigate consentInformation.purposes
-    map<json>|error consentInfoMap = bodyMap["consentInformation"].ensureType();
-    if consentInfoMap is error {
-        log:printError("consentInformation missing or wrong format", consentId = consentId);
+    // Fetch the consent record to read the approved elements
+    http:Response|http:ClientError consentResp = isHttpClient->get(CONSENT_API_PATH + "/consents/" + consentId, authHeaders);
+    if consentResp is http:ClientError || consentResp.statusCode != 200 {
+        log:printError("Failed to fetch consent record from WSO2 IS", consentId = consentId);
+        return forbidden("consent_service_error", "");
+    }
+    json|error consentJson = consentResp.getJsonPayload();
+    map<json>|error consentMap = consentJson is json ? consentJson.ensureType() : consentJson;
+    if consentMap is error {
+        log:printError("Unexpected WSO2 IS consent response format", consentId = consentId);
         return forbidden("consent_service_error", "");
     }
 
-    json[]|error purposesArr = consentInfoMap["purposes"].ensureType();
+    json[]|error purposesArr = consentMap["purposes"].ensureType();
     if purposesArr is error {
         log:printError("purposes missing or wrong format", consentId = consentId);
         return forbidden("consent_service_error", "");
     }
 
-    // Check resource-level approval across all purposes
+    // Elements present in an active consent are the ones the user approved. An element covers
+    // the requested resource when its name is the resource type (e.g. "Patient") or a SMART
+    // scope for it (e.g. "patient/Patient.rs").
     boolean resourceFound = false;
     foreach json purpose in purposesArr {
         map<json>|error purposeMap = purpose.ensureType();
@@ -140,18 +183,9 @@ public function enforceRequestFlowConsent(mediation:Context ctx, http:Request re
             map<json>|error elemMap = element.ensureType();
             if elemMap is error { continue; }
 
-            map<json>|error propsMap = elemMap["properties"].ensureType();
-            if propsMap is error { continue; }
-
-            string rt = (propsMap["resourceType"] ?: "").toString();
-            if rt != fhirResourceType { continue; }
-
-            resourceFound = true;
-            boolean|error approved = elemMap["isUserApproved"].ensureType();
-            if approved is error || !approved {
-                log:printInfo("Resource not approved in consent",
-                    consentId = consentId, resourceType = fhirResourceType, resourcePath = resourcePath);
-                return forbidden("consent_resource_not_approved", fhirResourceType);
+            string name = (elemMap["name"] ?: "").toString();
+            if name == fhirResourceType || name.includes("/" + fhirResourceType + ".") {
+                resourceFound = true;
             }
         }
     }
@@ -168,14 +202,14 @@ public function enforceRequestFlowConsent(mediation:Context ctx, http:Request re
 }
 
 // @mediation:ResponseFlow
-// public function enforceResponseFlowConsent(mediation:Context ctx, http:Request req, http:Response res, string openFgcBaseUrl, string orgId, boolean failOnMissingConsent)
+// public function enforceResponseFlowConsent(mediation:Context ctx, http:Request req, http:Response res, string isBaseUrl, string clientId, string clientSecret, boolean failOnMissingConsent)
 //                                 returns http:Response|false|error|() {
 //     return ();
 // }
 
 // @mediation:FaultFlow
 // public function enforceFaultFlowConsent(mediation:Context ctx, http:Request req, http:Response? res, http:Response errFlowRes,
-//                                     error e, string openFgcBaseUrl, string orgId, boolean failOnMissingConsent) returns http:Response|false|error|() {
+//                                     error e, string isBaseUrl, string clientId, string clientSecret, boolean failOnMissingConsent) returns http:Response|false|error|() {
 //     return ();
 // }
 
