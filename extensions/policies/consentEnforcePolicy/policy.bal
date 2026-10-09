@@ -201,18 +201,6 @@ public function enforceRequestFlowConsent(mediation:Context ctx, http:Request re
     return ();
 }
 
-// @mediation:ResponseFlow
-// public function enforceResponseFlowConsent(mediation:Context ctx, http:Request req, http:Response res, string isBaseUrl, string clientId, string clientSecret, boolean failOnMissingConsent)
-//                                 returns http:Response|false|error|() {
-//     return ();
-// }
-
-// @mediation:FaultFlow
-// public function enforceFaultFlowConsent(mediation:Context ctx, http:Request req, http:Response? res, http:Response errFlowRes,
-//                                     error e, string isBaseUrl, string clientId, string clientSecret, boolean failOnMissingConsent) returns http:Response|false|error|() {
-//     return ();
-// }
-
 function forbidden(string reason, string consentStatus) returns http:Response {
     http:Response resp = new;
     resp.statusCode = 403;
