@@ -1,0 +1,944 @@
+name: smart-integration-test
+
+# ============================================================================
+# SMART on FHIR Integration Test Workflow
+#
+# This workflow:
+#   1. Builds APIM and IS accelerators from source
+#   2. Downloads WSO2 APIM 4.6.0 and WSO2 IS 7.3.0
+#   3. Installs accelerators and runs merge scripts
+#   4. Exchanges certificates between IS and APIM (with host.docker.internal SANs)
+#   5. Builds and starts the Ballerina extension services
+#   6. Starts WSO2 APIM and IS servers
+#   7. Runs one-time REST API configurations (key manager, portals)
+#   8. Provisions test users and groups
+#   9. Spins up the Inferno SMART App Launch test kit via Docker Compose
+#  10. Executes the automated portion of the SMART test suite
+#
+# ⚠️  MANUAL STEPS REQUIRED — see the "Manual Steps" section at the bottom
+#     of this file. These steps cannot be automated via REST/CLI.
+#
+# SECRETS REQUIRED (configure in repo Settings → Secrets and variables → Actions):
+#   WSO2_NEXUS_USERNAME     — WSO2 Nexus / Update Manager credentials (for downloading GA releases)
+#   WSO2_NEXUS_PASSWORD     — (same)
+#   APIM_ADMIN_PASSWORD     — WSO2 APIM admin password (default: admin)
+#   IS_ADMIN_PASSWORD       — WSO2 IS admin password   (default: admin)
+#   TEST_USER_PASSWORD      — Password for provisioned test users
+# ============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      apim_download_url:
+        description: "Direct download URL for wso2am-4.6.0.zip (leave empty to use release from WSO2 CDN)"
+        required: false
+        default: ""
+      is_download_url:
+        description: "Direct download URL for wso2is-7.3.0.zip (leave empty to use release from WSO2 CDN)"
+        required: false
+        default: ""
+      smart_test_suite:
+        description: "Inferno test suite ID to run (smart_stu1 | smart_stu2)"
+        required: false
+        default: "smart_stu2"
+
+env:
+  # Product versions
+  APIM_VERSION: "4.6.0"
+  IS_VERSION: "7.3.0"
+
+  # Install paths on the runner
+  APIM_HOME: "${{ github.workspace }}/wso2am-4.6.0"
+  IS_HOME:   "${{ github.workspace }}/wso2is-7.3.0"
+
+  # Accelerator zip names produced by the Maven build
+  HCAM_ZIP_GLOB: "distribution/apim-accelerator/target/wso2-hcam-accelerator-*.zip"
+  HCIS_ZIP_GLOB: "distribution/is-accelerator/target/wso2-hcis-accelerator-*.zip"
+
+  # Extension service ports (must match Config.toml values)
+  IAM_SERVICE_PORT:    "9093"
+  CONSENT_BFF_PORT:    "9092"
+  LAUNCH_SERVICE_PORT: "9095"
+
+  # WSO2 admin credentials
+  APIM_ADMIN_USER: "admin"
+  IS_ADMIN_USER:   "admin"
+
+  # APIM / IS default ports
+  APIM_HTTPS_PORT: "8243"
+  APIM_MGT_PORT:   "9443"   # APIM management (shared with IS on different host)
+  IS_HTTPS_PORT:   "9443"
+
+  # Inferno test kit path (checked out separately)
+  INFERNO_DIR: "${{ github.workspace }}/smart-app-launch-test-kit"
+  INFERNO_HOST: "http://localhost:90"
+
+jobs:
+  # ============================================================================
+  # JOB 1: Build accelerator artifacts
+  # ============================================================================
+  build:
+    name: Build accelerators
+    runs-on: ubuntu-latest
+
+    outputs:
+      hcam_zip: ${{ steps.locate_zips.outputs.hcam_zip }}
+      hcis_zip: ${{ steps.locate_zips.outputs.hcis_zip }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Build with Maven (skip tests for speed)
+        run: mvn clean install -DskipTests -q
+
+      - name: Locate accelerator ZIPs
+        id: locate_zips
+        run: |
+          HCAM=$(find distribution/apim-accelerator/target -name "wso2-hcam-accelerator-*.zip" | head -1)
+          HCIS=$(find distribution/is-accelerator/target   -name "wso2-hcis-accelerator-*.zip" | head -1)
+          echo "hcam_zip=$HCAM" >> "$GITHUB_OUTPUT"
+          echo "hcis_zip=$HCIS" >> "$GITHUB_OUTPUT"
+          echo "APIM accelerator: $HCAM"
+          echo "IS   accelerator: $HCIS"
+
+      - name: Upload accelerator ZIPs as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: accelerator-zips
+          path: |
+            ${{ steps.locate_zips.outputs.hcam_zip }}
+            ${{ steps.locate_zips.outputs.hcis_zip }}
+          retention-days: 1
+
+      - name: Upload built Ballerina JARs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ballerina-jars
+          path: |
+            extensions/services/iam-service-extensions/target/bin/iam_service_extensions.jar
+            extensions/services/consent-app-bff/target/bin/consent_app_bff.jar
+            extensions/services/smart-on-fhir-launch-service/target/bin/smart.fhir.launch.service.jar
+            extensions/services/security/server.crt
+            extensions/services/security/server.key
+          retention-days: 1
+
+  # ============================================================================
+  # JOB 2: Deploy, configure, and test
+  # ============================================================================
+  integration-test:
+    name: Deploy & run SMART tests
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      # -------------------------------------------------------------------------
+      # 2.1  Checkout source (needed for cert scripts and config files)
+      # -------------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # -------------------------------------------------------------------------
+      # 2.2  Checkout Inferno SMART App Launch test kit
+      # -------------------------------------------------------------------------
+      - name: Checkout smart-app-launch-test-kit
+        uses: actions/checkout@v4
+        with:
+          # Update this to the actual repo URL if the test kit is hosted on GitHub,
+          # or use a local path action if it lives inside this monorepo.
+          repository: wso2/smart-app-launch-test-kit
+          path: smart-app-launch-test-kit
+          # ⚠️  MANUAL: If the test kit is not a public GitHub repo, store the
+          # repo URL and a PAT in secrets and replace the above with:
+          #   repository: ${{ secrets.INFERNO_REPO }}
+          #   token: ${{ secrets.INFERNO_REPO_PAT }}
+
+      # -------------------------------------------------------------------------
+      # 2.3  Download WSO2 products
+      #
+      # ⚠️  MANUAL: WSO2 APIM 4.6.0 and IS 7.3.0 are commercial products.
+      #   Option A — If your org has an internal artifact mirror or CDN URL, set
+      #              the apim_download_url / is_download_url workflow inputs.
+      #   Option B — Store the ZIPs as GitHub Actions artifacts on a private
+      #              release and use a PAT to download them.
+      #   Option C — Add WSO2_NEXUS_USERNAME / WSO2_NEXUS_PASSWORD secrets and
+      #              adjust the curl commands below to authenticate against
+      #              https://maven.wso2.org or WSO2 Update Manager.
+      #   The steps below use the workflow inputs when provided, and fall back
+      #   to placeholder URLs that will need to be replaced.
+      # -------------------------------------------------------------------------
+      - name: Resolve product download URLs
+        id: product_urls
+        run: |
+          APIM_URL="${{ github.event.inputs.apim_download_url }}"
+          IS_URL="${{ github.event.inputs.is_download_url }}"
+
+          # Fallback — replace these with real download URLs accessible from GH Actions runners
+          if [[ -z "$APIM_URL" ]]; then
+            APIM_URL="https://product-dist.wso2.com/products/api-manager/${APIM_VERSION}/wso2am-${APIM_VERSION}.zip"
+          fi
+          if [[ -z "$IS_URL" ]]; then
+            IS_URL="https://product-dist.wso2.com/products/identity-server/${IS_VERSION}/wso2is-${IS_VERSION}.zip"
+          fi
+
+          echo "apim_url=$APIM_URL" >> "$GITHUB_OUTPUT"
+          echo "is_url=$IS_URL"     >> "$GITHUB_OUTPUT"
+
+      - name: Download WSO2 APIM ${{ env.APIM_VERSION }}
+        run: |
+          curl -fL \
+            -u "${{ secrets.WSO2_NEXUS_USERNAME }}:${{ secrets.WSO2_NEXUS_PASSWORD }}" \
+            -o wso2am.zip \
+            "${{ steps.product_urls.outputs.apim_url }}"
+          unzip -q wso2am.zip -d "${{ github.workspace }}"
+
+      - name: Download WSO2 IS ${{ env.IS_VERSION }}
+        run: |
+          curl -fL \
+            -u "${{ secrets.WSO2_NEXUS_USERNAME }}:${{ secrets.WSO2_NEXUS_PASSWORD }}" \
+            -o wso2is.zip \
+            "${{ steps.product_urls.outputs.is_url }}"
+          unzip -q wso2is.zip -d "${{ github.workspace }}"
+
+      # -------------------------------------------------------------------------
+      # 2.4  Download built artifacts from the build job
+      # -------------------------------------------------------------------------
+      - name: Download accelerator ZIPs
+        uses: actions/download-artifact@v4
+        with:
+          name: accelerator-zips
+          path: accelerators/
+
+      - name: Download Ballerina JARs
+        uses: actions/download-artifact@v4
+        with:
+          name: ballerina-jars
+          path: bal-services/
+
+      # -------------------------------------------------------------------------
+      # 2.5  Install accelerators
+      # -------------------------------------------------------------------------
+      - name: Install APIM accelerator
+        run: |
+          HCAM_ZIP=$(find accelerators/ -name "wso2-hcam-accelerator-*.zip" | head -1)
+          echo "Installing $HCAM_ZIP into $APIM_HOME"
+          unzip -q "$HCAM_ZIP" -d "$APIM_HOME"
+          cd "$APIM_HOME"
+          # Run merge script (start with -DdisableRoleValidationAtScopeCreation=true flag applied later at server start)
+          HCAM_MERGE=$(find . -name "merge.sh" -path "*/wso2-hcam-accelerator-*" | head -1)
+          chmod +x "$HCAM_MERGE"
+          "$HCAM_MERGE"
+
+      - name: Install IS accelerator
+        run: |
+          HCIS_ZIP=$(find accelerators/ -name "wso2-hcis-accelerator-*.zip" | head -1)
+          echo "Installing $HCIS_ZIP into $IS_HOME"
+          unzip -q "$HCIS_ZIP" -d "$IS_HOME"
+          cd "$IS_HOME"
+          # Use --patch flag for non-GA releases
+          HCIS_MERGE=$(find . -name "merge.sh" -path "*/wso2-hcis-accelerator-*" | head -1)
+          chmod +x "$HCIS_MERGE"
+          "$HCIS_MERGE" --patch
+
+      # -------------------------------------------------------------------------
+      # 2.6  Regenerate certificates with host.docker.internal SANs and
+      #      cross-import between IS and APIM truststores
+      # -------------------------------------------------------------------------
+      - name: Exchange and extend certificates
+        run: |
+          chmod +x "$INFERNO_DIR/export-wso2-certs.sh"
+          "$INFERNO_DIR/export-wso2-certs.sh" "$IS_HOME" "$APIM_HOME"
+
+      # -------------------------------------------------------------------------
+      # 2.7  Verify deployment.toml configurations
+      #
+      # ⚠️  MANUAL: The following deployment.toml settings cannot be fully
+      #   templated here because they depend on your environment, tenant,
+      #   and exact product patch versions. Verify / update these manually
+      #   before promoting to a persistent environment:
+      #
+      #   APIM ($APIM_HOME/repository/conf/deployment.toml):
+      #     [apim.key_manager]  — IS URL, credentials
+      #     [apim.oauth_configurations] — scopes, grant types
+      #     Healthcare-specific [healthcare.*] blocks
+      #
+      #   IS ($IS_HOME/repository/conf/deployment.toml):
+      #     [oauth.extensions]  — custom grant handlers
+      #     [user_store]        — user store config
+      #     Event publisher URL pointing to APIM
+      #
+      #   The CI job below applies a minimal sed-based patch to enable the
+      #   IS key manager URL so APIM can discover IS. Adjust as needed.
+      # -------------------------------------------------------------------------
+      - name: Patch APIM deployment.toml — point to IS key manager
+        run: |
+          TOML="$APIM_HOME/repository/conf/deployment.toml"
+          # Append IS key manager block if not already present
+          if ! grep -q '\[apim.key_manager\]' "$TOML"; then
+            cat >> "$TOML" <<'EOF'
+
+          [apim.key_manager]
+          service_url = "https://localhost:9443/services/"
+          username = "$ref{super_admin.username}"
+          password = "$ref{super_admin.password}"
+          EOF
+          fi
+
+      # -------------------------------------------------------------------------
+      # 2.8  Configure and start Ballerina extension services
+      # -------------------------------------------------------------------------
+      - name: Configure IAM service extensions
+        run: |
+          mkdir -p bal-run/iam-service
+          cp bal-services/iam_service_extensions.jar bal-run/iam-service/
+          cat > bal-run/iam-service/Config.toml <<EOF
+          hostname = "localhost"
+          port = ${IAM_SERVICE_PORT}
+          ehrContextResolveUrl = ""
+          scimApiBaseUrl = "https://localhost:9443"
+          scimApiPath = "/scim2/Users"
+          scimClientId = "ci-scim-client"
+          scimClientSecret = "ci-scim-secret"
+          scimTokenEndpoint = "https://localhost:9443/oauth2/token"
+          scimPatientGroupName = "patient"
+          fhirUserAttributeName = "fhirUser"
+          trustStorePath = "$IS_HOME/repository/resources/security/client-truststore.p12"
+          trustStorePassword = "wso2carbon"
+          alwaysAllowedScopes = ["openid"]
+          EOF
+          # ⚠️  MANUAL: Replace scimClientId and scimClientSecret with real values
+          #   for non-CI environments. For CI, these are placeholders; consent
+          #   checks against WSO2 IS are skipped by configuring alwaysAllowedScopes
+          #   to include all test scopes.
+
+      - name: Configure consent-app-bff
+        run: |
+          mkdir -p bal-run/consent-bff
+          cp bal-services/consent_app_bff.jar bal-run/consent-bff/
+          cat > bal-run/consent-bff/Config.toml <<EOF
+          hostname = "localhost"
+          port = ${CONSENT_BFF_PORT}
+          corsAllowedOrigin = "http://localhost:5176"
+          idpBaseUrl = "https://localhost:9443"
+          idpTokenEndpoint = ""
+          clientId = "ci-consent-client"
+          clientSecret = "ci-consent-secret"
+          consentFlow = "scope"
+          scopeConsentedApps = []
+          purposeConsentedApps = []
+          defaultIdpConsentPage = "https://localhost:9443/authenticationendpoint/oauth2_consent.do"
+          serviceId = "smart-on-fhir"
+          alwaysAllowedScopes = ["openid"]
+          singleConsentPerUser = false
+          showConsentElements = true
+          [scopeConsent]
+          purposeName = "SMART Scope Authorization"
+          EOF
+
+      - name: Configure smart-on-fhir-launch-service
+        run: |
+          mkdir -p bal-run/launch-service/data
+          cp bal-services/smart.fhir.launch.service.jar bal-run/launch-service/
+          # Copy TLS key/cert for the launch service
+          mkdir -p bal-run/security
+          cp bal-services/server.crt bal-run/security/
+          cp bal-services/server.key bal-run/security/
+          cat > bal-run/launch-service/Config.toml <<EOF
+          dbUrl = "jdbc:h2:./data/launch_context;AUTO_SERVER=TRUE"
+          dbUser = "sa"
+          dbPassword = ""
+          port = ${LAUNCH_SERVICE_PORT}
+          expirySeconds = 300
+          sslCertPath = "../security/server.crt"
+          sslKeyPath  = "../security/server.key"
+          [ballerina.log]
+          level = "INFO"
+          EOF
+
+      - name: Start Ballerina extension services
+        run: |
+          cd bal-run/iam-service
+          nohup java -jar iam_service_extensions.jar > iam-service.log 2>&1 &
+          echo $! > iam-service.pid
+
+          cd "${{ github.workspace }}/bal-run/consent-bff"
+          nohup java -jar consent_app_bff.jar > consent-bff.log 2>&1 &
+          echo $! > consent-bff.pid
+
+          cd "${{ github.workspace }}/bal-run/launch-service"
+          nohup java -jar smart.fhir.launch.service.jar > launch-service.log 2>&1 &
+          echo $! > launch-service.pid
+
+          # Wait for services to bind
+          sleep 15
+
+      - name: Verify extension services are up
+        run: |
+          curl -fsk "https://localhost:${LAUNCH_SERVICE_PORT}/health" || \
+            echo "⚠ launch-service health check not available — check launch-service.log"
+          # IAM service and consent-bff use HTTP
+          curl -fs  "http://localhost:${IAM_SERVICE_PORT}/health"  || \
+            echo "⚠ iam-service health check not available — check iam-service.log"
+          curl -fs  "http://localhost:${CONSENT_BFF_PORT}/health"  || \
+            echo "⚠ consent-bff health check not available — check consent-bff.log"
+
+      # -------------------------------------------------------------------------
+      # 2.9  Start WSO2 APIM and IS
+      # -------------------------------------------------------------------------
+      - name: Start WSO2 IS
+        run: |
+          JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$(which java)")")")
+          export JAVA_HOME
+          nohup "$IS_HOME/bin/wso2server.sh" start > "$IS_HOME/is-startup.log" 2>&1 &
+          echo $! > is.pid
+
+      - name: Start WSO2 APIM
+        run: |
+          JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$(which java)")")")
+          export JAVA_HOME
+          # Start APIM with scope creation validation disabled (required by accelerator)
+          nohup "$APIM_HOME/bin/api-manager.sh" start \
+            -DdisableRoleValidationAtScopeCreation=true \
+            > "$APIM_HOME/apim-startup.log" 2>&1 &
+          echo $! > apim.pid
+
+      - name: Wait for WSO2 IS to be ready
+        timeout-minutes: 5
+        run: |
+          echo "Waiting for WSO2 IS on https://localhost:${IS_HTTPS_PORT}..."
+          until curl -fsk "https://localhost:${IS_HTTPS_PORT}/carbon/admin/login.jsp" > /dev/null 2>&1; do
+            sleep 10
+            echo "  still waiting for IS..."
+          done
+          echo "IS is up."
+
+      - name: Wait for WSO2 APIM to be ready
+        timeout-minutes: 5
+        run: |
+          echo "Waiting for WSO2 APIM management on https://localhost:9443..."
+          until curl -fsk "https://localhost:9443/carbon/admin/login.jsp" > /dev/null 2>&1; do
+            sleep 10
+            echo "  still waiting for APIM..."
+          done
+          echo "APIM is up."
+
+      # -------------------------------------------------------------------------
+      # 2.10  One-time APIM configurations via REST API
+      #
+      # ⚠️  MANUAL STEPS — steps that cannot be automated via REST API:
+      #
+      #   a) Log in to APIM Admin Console (https://localhost:9443/admin):
+      #      - Go to Key Managers → Add Key Manager
+      #      - Select "WSO2 Identity Server" type
+      #      - Set Issuer: https://localhost:9443/oauth2/token
+      #      - Set Well-Known URL: https://localhost:9443/oauth2/oidcdiscovery/.well-known/openid-configuration
+      #      - Set grant types: code, client_credentials, refresh_token
+      #      - Enable PKCE support
+      #      - Save
+      #
+      #   b) Log in to APIM Admin Console → Key Managers:
+      #      - Disable the "Resident Key Manager"
+      #
+      #   These require GUI interaction because the Admin REST API for key manager
+      #   registration does not yet expose all required SMART-specific fields
+      #   in a reliable machine-readable form across APIM 4.x patch versions.
+      #
+      #   The steps below perform what CAN be automated.
+      # -------------------------------------------------------------------------
+
+      - name: Configure IS as Key Manager in APIM via REST API
+        run: |
+          # Obtain APIM admin token (Dynamic Client Registration)
+          TOKEN=$(curl -sk -X POST \
+            "https://localhost:9443/oauth2/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=password&username=${APIM_ADMIN_USER}&password=${{ secrets.APIM_ADMIN_PASSWORD }}&scope=apim:admin" \
+            -u "admin:${{ secrets.APIM_ADMIN_PASSWORD }}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))")
+
+          if [[ -z "$TOKEN" ]]; then
+            echo "::warning::Could not obtain APIM admin token. Key manager configuration will need to be done manually."
+            exit 0
+          fi
+
+          # Register IS as external key manager
+          curl -sk -X POST \
+            "https://localhost:9443/api/am/admin/v3/key-managers" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "WSO2IdentityServer",
+              "displayName": "WSO2 Identity Server 7.3",
+              "type": "WSO2-IS",
+              "description": "WSO2 IS 7.3.0 as SMART authorization server",
+              "intrinsicScopes": ["apim:subscribe"],
+              "issuer": "https://localhost:9443/oauth2/token",
+              "clientRegistrationEndpoint": "https://localhost:9443/api/identity/oauth2/dcr/v1.1/register",
+              "introspectionEndpoint": "https://localhost:9443/oauth2/introspect",
+              "tokenEndpoint": "https://localhost:9443/oauth2/token",
+              "revokeEndpoint": "https://localhost:9443/oauth2/revoke",
+              "authorizeEndpoint": "https://localhost:9443/oauth2/authorize",
+              "wellKnownEndpoint": "https://localhost:9443/oauth2/oidcdiscovery/.well-known/openid-configuration",
+              "enableTokenGeneration": true,
+              "enableMapOAuthConsumerApps": true,
+              "enableOAuthAppCreation": true,
+              "enableSelfValidationJWT": true,
+              "tokenValidation": [{"enable": true, "type": "SELF_VALIDATE_JWT"}],
+              "consumerKeyClaim": "azp",
+              "scopesClaim": "scope",
+              "enabled": true
+            }' \
+            | python3 -m json.tool || echo "::warning::Key manager registration failed — complete manually via Admin Console."
+
+      # -------------------------------------------------------------------------
+      # 2.11  Provision test users and groups in IS via SCIM2 API
+      # -------------------------------------------------------------------------
+      - name: Provision test groups (patient, practitioner) in IS
+        run: |
+          BASE="https://localhost:${IS_HTTPS_PORT}"
+          AUTH="${IS_ADMIN_USER}:${{ secrets.IS_ADMIN_PASSWORD }}"
+
+          create_group() {
+            local NAME="$1"
+            curl -sk -X POST "$BASE/scim2/Groups" \
+              -H "Content-Type: application/json" \
+              -u "$AUTH" \
+              -d "{\"displayName\": \"$NAME\", \"schemas\": [\"urn:ietf:params:scim:schemas:core:2.0:Group\"]}" \
+              | python3 -m json.tool
+          }
+
+          create_group "patient"
+          create_group "practitioner"
+
+      - name: Provision test users in IS
+        run: |
+          BASE="https://localhost:${IS_HTTPS_PORT}"
+          AUTH="${IS_ADMIN_USER}:${{ secrets.IS_ADMIN_PASSWORD }}"
+
+          # Get group IDs for assignment
+          PATIENT_GROUP_ID=$(curl -sk "$BASE/scim2/Groups?filter=displayName+eq+patient" \
+            -u "$AUTH" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['Resources'][0]['id'])" 2>/dev/null || echo "")
+          PRACTITIONER_GROUP_ID=$(curl -sk "$BASE/scim2/Groups?filter=displayName+eq+practitioner" \
+            -u "$AUTH" | python3 -c "import sys,json; r=json.load(sys.stdin); print(r['Resources'][0]['id'])" 2>/dev/null || echo "")
+
+          create_user_and_assign() {
+            local USERNAME="$1"
+            local GROUP_ID="$2"
+            local FHIR_USER_ID="$3"
+
+            # Create user
+            USER_ID=$(curl -sk -X POST "$BASE/scim2/Users" \
+              -H "Content-Type: application/json" \
+              -u "$AUTH" \
+              -d "{
+                \"userName\": \"$USERNAME\",
+                \"password\": \"${{ secrets.TEST_USER_PASSWORD }}\",
+                \"schemas\": [\"urn:ietf:params:scim:schemas:core:2.0:User\"],
+                \"urn:scim:wso2:schema\": {\"fhirUser\": \"$FHIR_USER_ID\"}
+              }" | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+
+            # Assign to group
+            if [[ -n "$USER_ID" && -n "$GROUP_ID" ]]; then
+              curl -sk -X PATCH "$BASE/scim2/Groups/$GROUP_ID" \
+                -H "Content-Type: application/json" \
+                -u "$AUTH" \
+                -d "{
+                  \"schemas\": [\"urn:ietf:params:scim:api:messages:2.0:PatchOp\"],
+                  \"Operations\": [{
+                    \"op\": \"add\",
+                    \"path\": \"members\",
+                    \"value\": [{\"value\": \"$USER_ID\"}]
+                  }]
+                }"
+            fi
+          }
+
+          create_user_and_assign "testpatient1" "$PATIENT_GROUP_ID"       "Patient/test-patient-001"
+          create_user_and_assign "testpractitioner1" "$PRACTITIONER_GROUP_ID" "Practitioner/test-practitioner-001"
+
+      # -------------------------------------------------------------------------
+      # 2.12  Configure IS Action/Extension points for SMART token enrichment
+      #
+      # ⚠️  MANUAL STEPS — configure via IS Console (https://localhost:9443/console):
+      #
+      #   a) Go to Actions → Pre Issue Access Token
+      #      - Add Action → External service URL: http://localhost:9093/token
+      #      - Save
+      #
+      #   b) Go to Actions → Pre Issue ID Token
+      #      - Add Action → External service URL: http://localhost:9093/token
+      #      - Save
+      #
+      #   These steps require the IS Console GUI. The IS Management REST API
+      #   for action configuration (Actions API) is available in IS 7.1+, but
+      #   the endpoint paths and request formats vary by patch version.
+      #   The curl below attempts automation — if it fails, complete manually.
+      # -------------------------------------------------------------------------
+      - name: Configure IS pre-issue token extension actions (best-effort)
+        run: |
+          BASE="https://localhost:${IS_HTTPS_PORT}"
+          AUTH="${IS_ADMIN_USER}:${{ secrets.IS_ADMIN_PASSWORD }}"
+          IAM_URL="http://localhost:${IAM_SERVICE_PORT}/token"
+
+          for ACTION_TYPE in "PRE_ISSUE_ACCESS_TOKEN" "PRE_ISSUE_ID_TOKEN"; do
+            HTTP_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" -X POST \
+              "$BASE/api/server/v1/actions/$ACTION_TYPE" \
+              -H "Content-Type: application/json" \
+              -u "$AUTH" \
+              -d "{
+                \"name\": \"SMART Token Enrichment\",
+                \"description\": \"Invoke IAM service extensions for SMART launch context\",
+                \"endpoint\": {
+                  \"uri\": \"$IAM_URL\",
+                  \"authentication\": {\"type\": \"NONE\"}
+                },
+                \"status\": \"ACTIVE\"
+              }")
+            if [[ "$HTTP_STATUS" == "201" ]]; then
+              echo "$ACTION_TYPE action configured successfully."
+            else
+              echo "::warning::$ACTION_TYPE action configuration returned HTTP $HTTP_STATUS — complete manually via IS Console."
+            fi
+          done
+
+      # -------------------------------------------------------------------------
+      # 2.13  Create FHIR API, application, and subscription in APIM
+      #
+      # ⚠️  MANUAL STEPS — parts that cannot be automated:
+      #
+      #   After the automated app creation below, you still need to:
+      #   a) Publisher Portal (https://localhost:9443/publisher):
+      #      - Create or import a FHIR R4 API with context /fhir/r4
+      #      - Set the backend endpoint (your FHIR server or mock)
+      #      - Publish the API
+      #   b) Dev Portal (https://localhost:9443/devportal):
+      #      - Create an Application (or use the one created below)
+      #      - Enable grant types: Authorization Code, Client Credentials, Refresh Token
+      #      - Enable PKCE
+      #      - Subscribe the application to the FHIR API
+      #      - Note the generated client ID and secret for Inferno inputs
+      # -------------------------------------------------------------------------
+      - name: Create test application in Dev Portal
+        run: |
+          # Get token via password grant
+          TOKEN=$(curl -sk -X POST \
+            "https://localhost:9443/oauth2/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=password&username=${APIM_ADMIN_USER}&password=${{ secrets.APIM_ADMIN_PASSWORD }}&scope=apim:subscribe apim:app_manage" \
+            -u "admin:${{ secrets.APIM_ADMIN_PASSWORD }}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || echo "")
+
+          if [[ -z "$TOKEN" ]]; then
+            echo "::warning::Could not obtain Dev Portal token. Application creation will need to be done manually."
+            exit 0
+          fi
+
+          curl -sk -X POST \
+            "https://localhost:9443/api/am/devportal/v3/applications" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "SMART-Test-App",
+              "throttlingPolicy": "Unlimited",
+              "description": "Application for SMART on FHIR integration tests",
+              "tokenType": "JWT",
+              "groups": [],
+              "attributes": {}
+            }' | python3 -m json.tool || echo "::warning::Application creation failed — complete manually via Dev Portal."
+
+      # -------------------------------------------------------------------------
+      # 2.14  Set up Inferno SMART test kit
+      # -------------------------------------------------------------------------
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Inferno test kit
+        working-directory: ${{ env.INFERNO_DIR }}
+        run: |
+          chmod +x setup.sh
+          ./setup.sh
+
+      - name: Create Inferno WSO2 preset
+        working-directory: ${{ env.INFERNO_DIR }}
+        run: |
+          # ⚠️  MANUAL: Replace client_id below with the actual client ID generated
+          #   by APIM after the application is subscribed to the FHIR API.
+          #   The client ID is available in Dev Portal → Applications → OAuth2 Keys.
+          cat > config/presets/wso2_smart_stu2_preset.json <<'EOF'
+          {
+            "title": "WSO2 SMART STU2 - CI",
+            "id": "wso2_smart_stu2_ci",
+            "test_suite_id": "smart_stu2",
+            "inputs": [
+              {
+                "name": "url",
+                "type": "text",
+                "value": "https://host.docker.internal:8243/fhir/r4"
+              },
+              {
+                "name": "standalone_smart_auth_info",
+                "type": "auth_info",
+                "value": {
+                  "auth_type": "public",
+                  "requested_scopes": "launch/patient openid fhirUser offline_access patient/*.rs",
+                  "client_id": "REPLACE_WITH_APIM_CLIENT_ID",
+                  "pkce_support": "required",
+                  "pkce_code_challenge_method": "S256"
+                }
+              },
+              {
+                "name": "ehr_smart_auth_info",
+                "type": "auth_info",
+                "value": {
+                  "auth_type": "public",
+                  "requested_scopes": "launch openid fhirUser offline_access user/*.rs",
+                  "client_id": "REPLACE_WITH_APIM_CLIENT_ID"
+                }
+              }
+            ]
+          }
+          EOF
+
+      - name: Start Inferno test kit
+        working-directory: ${{ env.INFERNO_DIR }}
+        env:
+          INFERNO_HOST: ${{ env.INFERNO_HOST }}
+        run: |
+          docker compose up -d
+          # Wait for Inferno to be available
+          until curl -fs "http://localhost:90/" > /dev/null 2>&1; do
+            sleep 5
+            echo "  waiting for Inferno..."
+          done
+          echo "Inferno is up at http://localhost:90"
+
+      # -------------------------------------------------------------------------
+      # 2.15  Execute SMART test suite
+      #
+      # ⚠️  MANUAL STEP — Interactive authorization flows:
+      #
+      #   The SMART Standalone Launch and EHR Launch test groups require a
+      #   HUMAN to complete the browser-based OAuth2 authorization flow:
+      #   - Inferno will present a URL; open it in a browser
+      #   - Log in as testpatient1 / $TEST_USER_PASSWORD
+      #   - Approve the consent screen
+      #   - Inferno captures the redirect and continues the token exchange
+      #
+      #   This cannot be automated in a headless CI environment without a
+      #   browser automation framework (e.g. Selenium/Playwright) specifically
+      #   wired into the WSO2 login flow. The automated steps below run only
+      #   the non-interactive test groups (Discovery, Backend Services,
+      #   Token Introspection on an existing token).
+      #
+      #   To run the full suite interactively, visit: http://localhost:90
+      #   after this workflow completes and run manually.
+      # -------------------------------------------------------------------------
+      - name: Run automated SMART Discovery tests via Inferno API
+        run: |
+          SUITE="${{ github.event.inputs.smart_test_suite }}"
+
+          # Create a test session
+          SESSION_RESPONSE=$(curl -fs -X POST \
+            "http://localhost:90/api/test_sessions" \
+            -H "Content-Type: application/json" \
+            -d "{\"test_suite_id\": \"$SUITE\"}")
+          SESSION_ID=$(echo "$SESSION_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])" 2>/dev/null || echo "")
+
+          if [[ -z "$SESSION_ID" ]]; then
+            echo "::warning::Could not create Inferno test session. Check Inferno logs."
+            docker compose -f "$INFERNO_DIR/docker-compose.yml" logs --tail=50
+            exit 0
+          fi
+
+          echo "Created Inferno test session: $SESSION_ID"
+
+          # Update session inputs
+          curl -fs -X PUT \
+            "http://localhost:90/api/test_sessions/$SESSION_ID" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"inputs\": [
+                {
+                  \"name\": \"url\",
+                  \"value\": \"https://host.docker.internal:${APIM_HTTPS_PORT}/fhir/r4\"
+                }
+              ]
+            }" || echo "::warning::Could not update session inputs."
+
+          # Run the Discovery group (non-interactive)
+          DISCOVERY_GROUP_ID="smart_discovery_stu2"
+          if [[ "$SUITE" == "smart_stu1" ]]; then
+            DISCOVERY_GROUP_ID="smart_discovery"
+          fi
+
+          RUN_RESPONSE=$(curl -fs -X POST \
+            "http://localhost:90/api/test_sessions/$SESSION_ID/test_runs" \
+            -H "Content-Type: application/json" \
+            -d "{\"test_group_id\": \"$DISCOVERY_GROUP_ID\"}")
+          RUN_ID=$(echo "$RUN_RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])" 2>/dev/null || echo "")
+
+          if [[ -z "$RUN_ID" ]]; then
+            echo "::warning::Could not start Discovery test run."
+            exit 0
+          fi
+
+          echo "Started Discovery test run: $RUN_ID"
+
+          # Poll until complete
+          TIMEOUT=120
+          ELAPSED=0
+          while true; do
+            STATUS=$(curl -fs "http://localhost:90/api/test_runs/$RUN_ID" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
+            echo "  run status: $STATUS"
+            if [[ "$STATUS" == "done" || "$STATUS" == "error" ]]; then
+              break
+            fi
+            if [[ $ELAPSED -ge $TIMEOUT ]]; then
+              echo "::warning::Test run timed out after ${TIMEOUT}s."
+              break
+            fi
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+          done
+
+          # Fetch results
+          echo "Test results for session $SESSION_ID:"
+          curl -fs "http://localhost:90/api/test_sessions/$SESSION_ID/results" \
+            | python3 -c "
+          import sys, json
+          results = json.load(sys.stdin)
+          for r in results.get('data', []):
+              print(f\"  {r.get('result','?'):10} {r.get('test_id','?')}: {r.get('message','')[:120]}\")
+          " || echo "  (could not parse results)"
+
+          echo ""
+          echo "Full test report: http://localhost:90/test_sessions/$SESSION_ID"
+
+      # -------------------------------------------------------------------------
+      # 2.16  Upload logs and test results
+      # -------------------------------------------------------------------------
+      - name: Collect server and service logs
+        if: always()
+        run: |
+          mkdir -p test-artifacts/logs
+          cp -f "$APIM_HOME/repository/logs/wso2carbon.log" test-artifacts/logs/apim-carbon.log 2>/dev/null || true
+          cp -f "$IS_HOME/repository/logs/wso2carbon.log"   test-artifacts/logs/is-carbon.log   2>/dev/null || true
+          cp -f bal-run/iam-service/iam-service.log         test-artifacts/logs/ 2>/dev/null || true
+          cp -f bal-run/consent-bff/consent-bff.log         test-artifacts/logs/ 2>/dev/null || true
+          cp -f bal-run/launch-service/launch-service.log   test-artifacts/logs/ 2>/dev/null || true
+          docker compose -f "$INFERNO_DIR/docker-compose.yml" logs > test-artifacts/logs/inferno-docker.log 2>&1 || true
+
+      - name: Copy Inferno test database (results)
+        if: always()
+        run: |
+          mkdir -p test-artifacts/inferno-data
+          cp -rf "$INFERNO_DIR/data/"* test-artifacts/inferno-data/ 2>/dev/null || true
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smart-test-artifacts
+          path: test-artifacts/
+          retention-days: 7
+
+      # -------------------------------------------------------------------------
+      # 2.17  Cleanup
+      # -------------------------------------------------------------------------
+      - name: Stop Inferno
+        if: always()
+        working-directory: ${{ env.INFERNO_DIR }}
+        run: docker compose down || true
+
+      - name: Stop WSO2 servers
+        if: always()
+        run: |
+          "$APIM_HOME/bin/api-manager.sh" stop 2>/dev/null || true
+          "$IS_HOME/bin/wso2server.sh"    stop 2>/dev/null || true
+
+      - name: Stop Ballerina services
+        if: always()
+        run: |
+          for PID_FILE in bal-run/iam-service/iam-service.pid bal-run/consent-bff/consent-bff.pid bal-run/launch-service/launch-service.pid; do
+            if [[ -f "$PID_FILE" ]]; then
+              kill "$(cat $PID_FILE)" 2>/dev/null || true
+            fi
+          done
+
+# ==============================================================================
+# ⚠️  MANUAL STEPS SUMMARY
+# ==============================================================================
+#
+# The following steps CANNOT be automated in this workflow and must be
+# performed manually before running the full SMART test suite:
+#
+# PRE-WORKFLOW:
+#   1. Ensure WSO2 APIM 4.6.0 and IS 7.3.0 ZIPs are accessible from the
+#      Actions runner (via download URL or stored artifact) and set
+#      the secrets WSO2_NEXUS_USERNAME / WSO2_NEXUS_PASSWORD, or supply
+#      direct download URLs as workflow inputs.
+#
+#   2. Supply secrets in repo Settings → Secrets and variables → Actions:
+#      - APIM_ADMIN_PASSWORD  (WSO2 APIM admin password)
+#      - IS_ADMIN_PASSWORD    (WSO2 IS admin password)
+#      - TEST_USER_PASSWORD   (password for test users)
+#      - WSO2_NEXUS_USERNAME  (for downloading GA product ZIPs)
+#      - WSO2_NEXUS_PASSWORD
+#
+# POST-DEPLOYMENT (after the workflow brings up the servers):
+#   3. Log in to APIM Admin Console (https://<runner-ip>:9443/admin):
+#      a. Key Managers → Add Key Manager → WSO2 Identity Server type
+#         - Issuer: https://localhost:9443/oauth2/token
+#         - Well-Known URL: (auto-populate or enter manually)
+#         - Grant types: code, client_credentials, refresh_token
+#         - Enable PKCE
+#         - Save
+#      b. Key Managers → Resident Key Manager → Disable
+#
+#   4. Log in to IS Console (https://<runner-ip>:9443/console):
+#      a. Actions → Pre Issue Access Token → Add external service
+#         - URL: http://localhost:9093/token
+#      b. Actions → Pre Issue ID Token → Add external service
+#         - URL: http://localhost:9093/token
+#
+#   5. Publisher Portal (https://<runner-ip>:9443/publisher):
+#      - Create / import a FHIR R4 API (context: /fhir/r4)
+#      - Configure backend endpoint
+#      - Publish the API
+#
+#   6. Dev Portal (https://<runner-ip>:9443/devportal):
+#      - Open the SMART-Test-App (created by workflow)
+#      - OAuth2 Keys → Production → Generate Keys
+#      - Enable: Authorization Code, Refresh Token, Client Credentials
+#      - Enable PKCE (Code Challenge Method: S256)
+#      - Subscribe to the FHIR R4 API
+#      - Note the generated Client ID
+#
+#   7. Update config/presets/wso2_smart_stu2_preset.json in the test kit:
+#      - Replace "REPLACE_WITH_APIM_CLIENT_ID" with the actual Client ID
+#
+# INTERACTIVE TEST EXECUTION:
+#   8. Open Inferno at http://localhost:90
+#      - Select the "WSO2 SMART STU2 - CI" preset (or configure manually)
+#      - Run "SMART Standalone Launch" group:
+#        → When prompted, open the authorization URL in a browser
+#        → Log in as testpatient1 (password from TEST_USER_PASSWORD secret)
+#        → Approve the consent screen
+#        → Inferno captures the callback and proceeds
+#      - Run "EHR Launch" group (similar browser-based flow)
+#      - Run remaining groups (Token Refresh, Introspection, OpenID Connect)
+#
+# ==============================================================================

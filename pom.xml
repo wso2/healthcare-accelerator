@@ -260,11 +260,6 @@
             </dependency>
             <dependency>
                 <groupId>org.wso2.healthcare</groupId>
-                <artifactId>org.wso2.healthcare.consentmgt.core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.wso2.healthcare</groupId>
                 <artifactId>org.wso2.healthcare.apim.core</artifactId>
                 <version>${project.version}</version>
             </dependency>

@@ -15,17 +15,16 @@
 configurable string hostname = "localhost";
 configurable int port = 9093;
 
-// OpenFGC — consent store
-configurable string openfgcBaseUrl = "http://localhost:8080";
-configurable string orgId = "";
-configurable string tppClientId = "";
-
 // EHR context resolution (optional — leave blank to skip)
 configurable string ehrContextResolveUrl = "";
 
-// IS base URL for SCIM and introspect endpoint (e.g. https://host:9443)
+// IS base URL for SCIM, consent management and introspect endpoints (e.g. https://host:9443)
 configurable string isBaseUrl = "";
-// SCIM user lookup (optional — used to resolve patient ID from logged-in user)
+// Consent management API path on IS (IS 7.3.0+). For a tenant use /t/<tenant-domain>/api/identity/consent-mgt/v2.0
+configurable string consentApiPath = "/api/identity/consent-mgt/v2.0";
+// Management application credentials. The same application is used for the SCIM user lookup and the
+// consent management API, so it must be authorized for internal_user_mgt_view and internal_consent_mgt_consent_view.
+// (optional for SCIM — used to resolve patient ID from logged-in user)
 configurable string scimApiPath = "/scim2/Users";
 configurable string scimClientId = "";
 configurable string scimClientSecret = "";
@@ -45,3 +44,7 @@ configurable string trustStorePassword = "";
 
 // Scopes that bypass consent checks (always included in token)
 configurable string[] alwaysAllowedScopes = ["openid"];
+
+// Service ID that consent-app-bff records on every consent. Used to find a user's consent when IS does not
+// pass sessionDataKeyConsent to the token flow.
+configurable string consentServiceId = "smart-on-fhir";

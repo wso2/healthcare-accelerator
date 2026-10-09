@@ -73,7 +73,7 @@ function mockGetScimPatients() returns ConsentPatient[]|error {
 
 // ─── Helper: generate a valid consent token for submit-consent tests ──────────
 
-function generateTestConsentToken(string loggedInUser, string application, string sdkc) returns string|error {
+function generateTestConsentToken(string loggedInUser, string application, string sdkc, string clientId = "test-client-id") returns string|error {
     jwt:IssuerConfig issuerConfig = {
         issuer: "consent-app-bff",
         audience: "consent-app",
@@ -83,7 +83,7 @@ function generateTestConsentToken(string loggedInUser, string application, strin
             algorithm: jwt:HS256,
             config: "test-secret-key-must-be-at-least-32-chars"
         },
-        customClaims: {"app": application, "sdkc": sdkc}
+        customClaims: {"app": application, "cid": clientId, "sdkc": sdkc}
     };
     return check jwt:issue(issuerConfig);
 }
@@ -93,7 +93,7 @@ function generateTestConsentToken(string loggedInUser, string application, strin
 @test:Config {}
 function testGetConsentDataScopeFlow() returns error? {
     http:Response response = check bffClient->get(
-        "/v2/get-consent-data?sessionDataKeyConsent=test-session-key&spId=test-sp"
+        "/get-consent-data?sessionDataKeyConsent=test-session-key&spId=test-sp"
     );
 
     test:assertEquals(response.statusCode, 200);
@@ -123,7 +123,7 @@ function testGetConsentDataScopeFlow() returns error? {
 @test:Config {}
 function testGetConsentDataPractitionerFlow() returns error? {
     http:Response response = check bffClient->get(
-        "/v2/get-consent-data?sessionDataKeyConsent=practitioner-key&spId=test-sp"
+        "/get-consent-data?sessionDataKeyConsent=practitioner-key&spId=test-sp"
     );
 
     test:assertEquals(response.statusCode, 200);
@@ -152,18 +152,17 @@ function testGetConsentDataPractitionerFlow() returns error? {
 
 @test:Config {}
 function testGetConsentDataSingleConsentPerUser() returns error? {
-    // Enable existing consent in mock OpenFGC
     mockHasExistingConsent = true;
-    // Temporarily reconfigure singleConsentPerUser via test-only approach:
-    // Since singleConsentPerUser is a configurable we can't override, we test
-    // the getExistingConsent function's output indirectly. This test verifies
-    // the mock OpenFGC returns data and the BFF parses it without error.
-
     http:Response response = check bffClient->get(
-        "/v2/get-consent-data?sessionDataKeyConsent=test-session-key&spId=test-sp"
+        "/get-consent-data?sessionDataKeyConsent=test-session-key&spId=test-sp"
     );
-    test:assertEquals(response.statusCode, 200);
     mockHasExistingConsent = false;
+
+    test:assertEquals(response.statusCode, 200);
+    map<json> bodyMap = check (check response.getJsonPayload()).ensureType();
+    test:assertEquals(bodyMap["existingConsentId"], "existing-consent-id");
+    test:assertEquals(bodyMap["previouslyApprovedScopes"], ["patient/Observation.read", "patient/Patient.read"]);
+    test:assertEquals(bodyMap["consentExpiryOption"], "24h");
 }
 
 // ─── Test: submit-consent (scope flow, approved) ─────────────────────────────
@@ -173,6 +172,9 @@ function testSubmitConsentScopeApprove() returns error? {
     string consentToken = check generateTestConsentToken(
         "testuser@example.com", "TestApp", "submit-test-key"
     );
+    mockLastCreatedConsent = ();
+    mockRevokedConsentIds = [];
+    mockHasExistingConsent = true;
 
     json requestBody = {
         "consentToken": consentToken,
@@ -180,15 +182,34 @@ function testSubmitConsentScopeApprove() returns error? {
         "spId": "test-sp",
         "approved": true,
         "approvedScopes": ["patient/Observation.read", "patient/Patient.read"],
-        "hiddenScopes": []
+        "hiddenScopes": [],
+        "consentExpiryOption": "24h"
     };
 
-    http:Response response = check bffClient->post("/v2/submit-consent", requestBody);
-    test:assertEquals(response.statusCode, 200);
+    http:Response response = check bffClient->post("/submit-consent", requestBody);
+    mockHasExistingConsent = false;
+    // POST resources return 201 Created by default
+    test:assertEquals(response.statusCode, 201);
 
     json body = check response.getJsonPayload();
     map<json> bodyMap = check body.ensureType();
     test:assertEquals(bodyMap["status"], "success");
+
+    // Consent sent to WSO2 IS
+    map<json> created = check (mockLastCreatedConsent ?: {}).ensureType();
+    test:assertEquals(created["subjectId"], "testuser@example.com");
+    test:assertEquals(created["serviceId"], "test-service");
+    test:assertEquals(created["purposes"], [{"id": MOCK_SCOPE_PURPOSE_ID, "elements": [{"id": "element-scope-id"}]}]);
+    map<json> props = check created.properties.ensureType();
+    test:assertEquals(props["sessionDataKeyConsent"], "submit-test-key");
+    test:assertEquals(props["approvedScopes"], "patient/Observation.read patient/Patient.read");
+    test:assertEquals(props["consentExpiryOption"], "24h");
+    // client_id is stored so iam-service-extensions can find the consent in the token flow
+    test:assertEquals(props["clientId"], "test-client-id");
+    test:assertTrue(created["expiryTime"] is int);
+
+    // singleConsentPerUser: previous active consent is revoked, the new one is kept
+    test:assertEquals(mockRevokedConsentIds, ["existing-consent-id"]);
 }
 
 // ─── Test: submit-consent (purpose flow, approved) ───────────────────────────
@@ -198,6 +219,8 @@ function testSubmitConsentPurposeApprove() returns error? {
     string consentToken = check generateTestConsentToken(
         "testuser@example.com", "TestApp", "purpose-submit-key"
     );
+
+    mockLastCreatedConsent = ();
 
     json requestBody = {
         "consentToken": consentToken,
@@ -212,15 +235,50 @@ function testSubmitConsentPurposeApprove() returns error? {
         ]
     };
 
-    http:Response response = check bffClient->post("/v2/submit-consent", requestBody);
-    test:assertEquals(response.statusCode, 200);
+    http:Response response = check bffClient->post("/submit-consent", requestBody);
+    // POST resources return 201 Created by default
+    test:assertEquals(response.statusCode, 201);
 
     json body = check response.getJsonPayload();
     map<json> bodyMap = check body.ensureType();
     test:assertEquals(bodyMap["status"], "success");
+
+    // Only approved elements are bound, by id
+    map<json> created = check (mockLastCreatedConsent ?: {}).ensureType();
+    test:assertEquals(created["purposes"], [{
+        "id": MOCK_HEALTH_PURPOSE_ID,
+        "elements": [{"id": "element-patient-id"}, {"id": "element-observation-id"}]
+    }]);
+    // client_id is stored for the token-flow lookup in the purpose flow as well
+    map<json> props = check created.properties.ensureType();
+    test:assertEquals(props["clientId"], "test-client-id");
 }
 
-// ─── Test: submit-consent (deny — no OpenFGC call, immediate success) ────────
+// ─── Test: no clientId property when the consent token carries no client_id ──────
+
+@test:Config {}
+function testSubmitConsentWithoutClientId() returns error? {
+    string consentToken = check generateTestConsentToken(
+        "testuser@example.com", "TestApp", "no-cid-key", ""
+    );
+    mockLastCreatedConsent = ();
+
+    json requestBody = {
+        "consentToken": consentToken,
+        "sessionDataKeyConsent": "no-cid-key",
+        "spId": "test-sp",
+        "approved": true,
+        "consentedPurposes": [{"purposeName": "All Health Data Access", "consentedElements": ["Patient"]}]
+    };
+    http:Response response = check bffClient->post("/submit-consent", requestBody);
+    test:assertEquals(response.statusCode, 201);
+
+    map<json> created = check (mockLastCreatedConsent ?: {}).ensureType();
+    map<json> props = check created.properties.ensureType();
+    test:assertFalse(props.hasKey("clientId"), "an empty client_id must not be stored as a property");
+}
+
+// ─── Test: submit-consent (deny — no consent API call, immediate success) ────────
 
 @test:Config {}
 function testSubmitConsentDeny() returns error? {
@@ -235,8 +293,9 @@ function testSubmitConsentDeny() returns error? {
         "approved": false
     };
 
-    http:Response response = check bffClient->post("/v2/submit-consent", requestBody);
-    test:assertEquals(response.statusCode, 200);
+    http:Response response = check bffClient->post("/submit-consent", requestBody);
+    // POST resources return 201 Created by default
+    test:assertEquals(response.statusCode, 201);
 
     json body = check response.getJsonPayload();
     map<json> bodyMap = check body.ensureType();
@@ -255,7 +314,7 @@ function testSubmitConsentInvalidToken() returns error? {
         "approvedScopes": ["patient/Observation.read"]
     };
 
-    http:Response response = check bffClient->post("/v2/submit-consent", requestBody);
+    http:Response response = check bffClient->post("/submit-consent", requestBody);
     // BFF should return an error status (500 or similar) for invalid JWT
     test:assertTrue(response.statusCode >= 400);
 }
@@ -277,6 +336,6 @@ function testSubmitConsentSessionMismatch() returns error? {
         "approvedScopes": ["patient/Observation.read"]
     };
 
-    http:Response response = check bffClient->post("/v2/submit-consent", requestBody);
+    http:Response response = check bffClient->post("/submit-consent", requestBody);
     test:assertTrue(response.statusCode >= 400);
 }

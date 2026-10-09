@@ -33,12 +33,14 @@ configurable string clientSecret = ?;
 # Consent flow: "scope" (SMART scopes) or "purpose" (purposes + elements)
 configurable string consentFlow = "scope";
 
-configurable string openfgcBaseUrl = ?;
-configurable string orgId = ?;
-configurable string tppClientId = ?;
-configurable string consentType = ?;
+# Base path of the WSO2 IS consent management API, appended to idpBaseUrl.
+# For a tenant other than carbon.super use "/t/<tenant-domain>/api/identity/consent-mgt/v2.0"
+configurable string consentApiBasePath = "/api/identity/consent-mgt/v2.0";
 
-# Scope flow: OpenFGC wrapper names
+# Service ID recorded on every consent created by this service
+configurable string serviceId = "smart-on-fhir";
+
+# Scope flow: consent purpose that wraps the SMART scopes
 configurable ScopeConsentConfig scopeConsent = {};
 
 # Scopes always approved without user interaction (not shown in UI)
@@ -72,5 +74,10 @@ configurable string fhirUserAttributeName = "fhirUser";
 # EHR launch context resolve endpoint (leave empty to disable)
 configurable string ehrContextResolveUrl = "";
 
-# Validity duration for scope consents sent to OpenFGC, in seconds (default: 3 hours)
+# Validity duration for scope consents recorded in WSO2 IS, in seconds (default: 3 hours)
 configurable int scopeConsentValidityTime = 10800;
+
+# When true (default) the configured consent purposes are fetched from WSO2 IS at startup and the
+# service fails to start if any is missing. When false they are fetched lazily on first use
+# (used by the unit tests, where the mock IS only starts after module init).
+configurable boolean fetchPurposesOnStartup = true;
