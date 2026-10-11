@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pdf-phi-redaction"
+version = "1"
+description = "WSO2 AI Gateway policy for verified OpenMed PDF PHI redaction"
+readme = "README.md"
+requires-python = ">=3.10,<3.12"
+license = { text = "Apache-2.0" }
+dependencies = [
+  "torch @ https://download.pytorch.org/whl/cpu/torch-2.13.0%2Bcpu-cp310-cp310-manylinux_2_28_x86_64.whl ; python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "torch @ https://download.pytorch.org/whl/cpu/torch-2.13.0%2Bcpu-cp311-cp311-manylinux_2_28_x86_64.whl ; python_version == '3.11' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "openmed[hf,multimodal]>=2.5.0,<3.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pdf_phi_redaction_v1"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel.force-include]
+"policy-definition.yaml" = "pdf_phi_redaction_v1/policy-definition.yaml"
+
+[tool.hatch.build.targets.sdist]
+only-include = ["src/pdf_phi_redaction_v1", "pyproject.toml", "policy-definition.yaml", "README.md"]

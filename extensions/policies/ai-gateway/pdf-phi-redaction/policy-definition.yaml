@@ -1,0 +1,31 @@
+name: pdf-phi-redaction
+version: v1
+displayName: PDF PHI Redaction
+description: |
+  Redacts inline base64 PDF file parts in buffered JSON LLM requests with
+  OpenMed, verifies the redacted PDF, and forwards only the verified bytes.
+
+parameters:
+  type: object
+  additionalProperties: false
+  properties:
+    model:
+      type: string
+      default: OpenMed/OpenMed-PII-SuperClinical-Small-44M-v1
+      description: OpenMed PII model used to identify sensitive spans.
+    maxPdfBytes:
+      type: integer
+      minimum: 1
+      maximum: 26214400
+      default: 10485760
+      description: Maximum decoded size of any inline PDF.
+    maxPages:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 20
+      description: Maximum number of pages allowed in each PDF.
+systemParameters:
+  type: object
+  additionalProperties: false
+  properties: {}
