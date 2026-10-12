@@ -2,10 +2,10 @@ hostname = "localhost"
 port = 9092
 corsAllowedOrigin = "http://localhost:3000"
 
-# callIdp / getScimUser / getScimPatients are mocked at function level — these values
-# are not used during tests but must be present to satisfy required configurables.
-idpBaseUrl = "http://localhost:9195"
-idpTokenEndpoint = "http://localhost:9195/oauth2/token"
+# callIdp / getScimUser / getScimPatients are mocked at function level. The in-process mock IS
+# listener on port 9196 serves the token endpoint and the consent management API.
+idpBaseUrl = "http://localhost:9196"
+idpTokenEndpoint = "http://localhost:9196/oauth2/token"
 clientId = "test-client-id"
 
 # Must be >= 32 characters for HS256
@@ -13,21 +13,16 @@ clientSecret = "test-secret-key-must-be-at-least-32-chars"
 
 consentFlow = "scope"
 
-# Mock OpenFGC runs in-process on port 9196
-openfgcBaseUrl = "http://localhost:9196"
-orgId = "test-org"
-tppClientId = "test-tpp-client"
-consentType = "test-consent"
-
-scopeConsentPurposeName = "SMART Scope Authorization"
-scopeConsentElementName = "scope-access"
+# Mock IS only starts after module init, so load purposes lazily
+fetchPurposesOnStartup = false
+# singleConsentPerUser = true exercises the existing-consent lookup and revoke-after-create paths
+singleConsentPerUser = true
+showConsentElements = true
+serviceId = "test-service"
 alwaysAllowedScopes = ["openid"]
 
-singleConsentPerUser = false
-showConsentElements = true
+[scopeConsent]
+purposeName = "SMART Scope Authorization"
 
-[[consentPurpose]]
-name = "All Health Data Access"
-description = "Test health data access"
-mandatory = false
-elements = ["Patient", "Observation"]
+[[purposeConsent]]
+purposeName = "All Health Data Access"

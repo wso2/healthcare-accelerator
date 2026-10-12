@@ -30,25 +30,31 @@ purposeConsentedApps = ["<spId-3>"]
 # Fallback URL for client_ids not in either list — sessionDataKeyConsent and spId are appended
 defaultIdpConsentPage = "https://localhost:9443/authenticationendpoint/oauth2_consent.do"
 
-openfgcBaseUrl = "http://localhost:8080"
-orgId = "<openfgc-org-id>"
-tppClientId = "<openfgc-tpp-client-id>"
-consentType = "smart-consent"
+# Consent management API of WSO2 IS 7.3.0+ (reached via idpBaseUrl using the management app above).
+# The management app must be authorized for the Consent Management API with scopes:
+#   internal_consent_mgt_purpose_view, internal_consent_mgt_element_view,
+#   internal_consent_mgt_consent_create, internal_consent_mgt_consent_view, internal_consent_mgt_consent_update
+# For a non carbon.super tenant use "/t/<tenant-domain>/api/identity/consent-mgt/v2.0"
+# consentApiBasePath = "/api/identity/consent-mgt/v2.0"
+
+# Service ID recorded on every consent created by this service
+serviceId = "smart-on-fhir"
 
 alwaysAllowedScopes = ["openid"]
 
 singleConsentPerUser = false
 showConsentElements = true
 
-# Validity duration for scope consents sent to OpenFGC, in seconds (default: 3 hours)
+# Validity duration for scope consents recorded in WSO2 IS, in seconds (default: 3 hours)
 # scopeConsentValidityTime = 10800
 
-# Scope flow: which OpenFGC purpose wraps SMART scopes (element name is fetched from OpenFGC at startup)
+# Scope flow: which WSO2 IS consent purpose wraps SMART scopes (its elements are fetched from WSO2 IS at startup).
+# The purpose must be created in WSO2 IS beforehand; the approved scopes themselves are stored as consent properties.
 [scopeConsent]
 purposeName = "SMART Scope Authorization"
 
 # Purpose flow: one [[purposeConsent]] entry per purpose shown in the consent UI.
-# description, mandatory flag, and elements are fetched from OpenFGC at startup.
-# The service fails to start if any listed purpose is not found in OpenFGC.
+# description, mandatory flag, and elements are fetched from WSO2 IS at startup.
+# The service fails to start if any listed purpose is not found in WSO2 IS.
 [[purposeConsent]]
 purposeName = "All Health Data Access"

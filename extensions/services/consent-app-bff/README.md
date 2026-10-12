@@ -11,7 +11,7 @@ consent-app (UI)
 consent-app-bff  :9092
       │
       ├── IDP (WSO2 IS / Asgardeo)  — OauthConsentKey + SCIM
-      └── OpenFGC  — consent store
+      └── WSO2 IS consent management API (v2) — consent store
 ```
 
 ### Files
@@ -19,10 +19,10 @@ consent-app-bff  :9092
 | File | Purpose |
 |------|---------|
 | `config.bal` | All configurables |
-| `connections.bal` | IDP + OpenFGC HTTP clients, token management |
+| `connections.bal` | IDP HTTP client (also used for the IS consent API), token management, purpose cache |
 | `types.bal` | All record types |
 | `service.bal` | HTTP listener, service endpoints |
-| `tests/` | Mock OpenFGC listener, IDP mocked at function level, service tests |
+| `tests/` | Mock WSO2 IS listener (token + consent API), IDP mocked at function level, service tests |
 
 ## API
 
@@ -70,7 +70,7 @@ Resolves the consent flow and returns all data the UI needs in one call.
 
 ### `POST /submit-consent`
 
-Validates the JWT consent token and stores the decision in OpenFGC. The UI form-POSTs directly to the IDP after this call succeeds.
+Validates the JWT consent token and stores the decision in WSO2 IS as a consent record (`POST /consents`). With `singleConsentPerUser`, previous active consents of the user are revoked after the new one is created. The UI form-POSTs directly to the IDP after this call succeeds.
 
 ```json
 // scope flow
@@ -121,7 +121,19 @@ bal run
 | `corsAllowedOrigin` | UI origin, e.g. `http://localhost:5175` |
 | `idpBaseUrl` | WSO2 IS (`https://localhost:9443`) or Asgardeo (`https://api.asgardeo.io/t/<tenant>`) |
 | `clientId` / `clientSecret` | OAuth2 client credentials; `clientSecret` is also the HS256 JWT signing secret |
-| `openfgcBaseUrl` / `orgId` / `tppClientId` / `consentType` | OpenFGC connection |
+| `serviceId` | Service ID recorded on consents (default `smart-on-fhir`) |
+| `scopeConsent.purposeName` / `purposeConsent` | Consent purposes that must already exist in WSO2 IS 7.3.0+ |
+
+The consent management API is called on `idpBaseUrl` (path `consentApiBasePath`, default `/api/identity/consent-mgt/v2.0`) with a token of the same management application (`clientId`/`clientSecret`). Authorize that application for the Consent Management API with `internal_consent_mgt_purpose_view`, `internal_consent_mgt_element_view`, `internal_consent_mgt_consent_create`, `internal_consent_mgt_consent_view` and `internal_consent_mgt_consent_update`.
+
+### Consent record layout in WSO2 IS
+
+| Field | Value |
+|-------|-------|
+| `subjectId` / `serviceId` | Logged-in username / `serviceId` config |
+| `purposes[].elements` | Scope flow: the elements of `scopeConsent.purposeName`. Purpose flow: only the elements the user approved |
+| `expiryTime` | Epoch milliseconds from the chosen validity (`never` → no expiry) |
+| `properties` | `sessionDataKeyConsent`, `spId`, `application`, `clientId` (OAuth `client_id`, used by `iam-service-extensions` to find the consent in the token flow); scope flow also `approvedScopes` (space-separated) and `consentExpiryOption` |
 
 See `Config.toml.example` for the full template including `consentFlow`, purpose definitions, and `auto` mode settings.
 
@@ -131,4 +143,4 @@ See `Config.toml.example` for the full template including `consentFlow`, purpose
 bal test
 ```
 
-Tests use in-process mock IDP and OpenFGC listeners defined in `tests/`.
+Tests use in-process mock WSO2 IS listener (token endpoint and consent API) defined in `tests/`.

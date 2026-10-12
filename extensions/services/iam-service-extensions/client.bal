@@ -17,9 +17,7 @@ import ballerina/log;
 import ballerina/oauth2;
 import ballerina/time;
 
-final http:Client openfgcClient = check new (openfgcBaseUrl);
-
-// Cached SCIM bearer token — avoids a token endpoint call on every request.
+// Cached management application bearer token (used for SCIM and the consent management API) — avoids a token endpoint call on every request.
 isolated record {|string token; int expiresAt;|}? _scimTokenCache = ();
 
 // Lazy-init EHR client — created on first use, reused across requests.
@@ -38,86 +36,152 @@ isolated function getOrCreateEhrClient() returns http:Client|error {
     }
 }
 
-// Looks up consentId for the given sessionDataKeyConsent from OpenFGC attributes endpoint.
-// Returns () if no consent found (caller should treat as SUCCESS with no operations).
-isolated function getConsentIdBySessionKey(string sessionDataKeyConsent) returns string?|error {
-    string path = string `/consents/attributes?key=sessionDataKeyConsent&value=${getEncodedUri(sessionDataKeyConsent)}`;
-    log:printDebug("[OpenFGC] GET consent by session key", path = path);
-    http:Response response = check openfgcClient->get(path, {
-        "org-id": orgId,
-        "TPP-client-id": tppClientId
+// Name of the consent property under which consent-app-bff stores the SMART scopes approved by the user (space separated).
+const string APPROVED_SCOPES_PROPERTY = "approvedScopes";
+
+// Calls a GET on the IS consent management API using the management application token.
+isolated function getFromConsentApi(string path) returns http:Response|error {
+    string token = check getManagementToken();
+    http:Client isClient = check getOrCreateIsClient();
+    return isClient->get(consentApiPath + path, {
+        "Authorization": string `Bearer ${token}`,
+        "Accept": "application/json"
     });
-    log:printDebug("[OpenFGC] GET consent by session key response", statusCode = response.statusCode);
+}
+
+// Looks up the user's ACTIVE consent for the given OAuth client. IS does not pass sessionDataKeyConsent to the
+// token flow, so this uses the user id and client_id of the token request instead. consent-app-bff stores the
+// client_id as the consent property `clientId`; with singleConsentPerUser there is at most one such consent.
+// Returns () if no ACTIVE consent found.
+isolated function getConsentIdByUserAndClient(string userId, string clientId) returns string?|error {
+    string filter = string `properties.clientId eq ${clientId}`;
+    string path = string `/consents?userId=${getEncodedUri(userId)}&relation=SUBJECT&serviceId=${getEncodedUri(consentServiceId)}&state=ACTIVE&filter=${getEncodedUri(filter)}&limit=1`;
+    log:printDebug("[Consent] GET consent by user and client", path = path);
+    http:Response response = check getFromConsentApi(path);
+    log:printDebug("[Consent] GET consent by user and client response", statusCode = response.statusCode);
 
     if response.statusCode < 200 || response.statusCode >= 300 {
         string|error bodyResult = response.getTextPayload();
         string body = bodyResult is string ? bodyResult : "";
-        log:printError("[OpenFGC] GET consent by session key failed", statusCode = response.statusCode, body = body);
-        return error(string `OpenFGC attributes lookup returned ${response.statusCode}: ${body}`);
+        log:printError("[Consent] GET consent by user and client failed", statusCode = response.statusCode, body = body);
+        return error(string `Consent lookup returned ${response.statusCode}: ${body}`);
     }
 
     json payload = check response.getJsonPayload();
-    log:printDebug("[OpenFGC] GET consent by session key body", body = payload.toJsonString());
     if payload is map<json> {
-        json consentIds = payload["consentIds"] ?: [];
-        if consentIds is json[] && consentIds.length() > 0 {
-            json first = consentIds[0];
-            if first is string && first != "" {
-                log:printDebug("[OpenFGC] Resolved consentId", consentId = first);
-                return first;
+        json consents = payload["Consents"] ?: [];
+        if consents is json[] {
+            foreach json c in consents {
+                if c is map<json> {
+                    json id = c["id"] ?: ();
+                    json state = c["state"] ?: "ACTIVE";
+                    if id is string && id != "" && state == "ACTIVE" {
+                        log:printDebug("[Consent] Resolved consentId by user and client", consentId = id);
+                        return id;
+                    }
+                }
             }
         }
     }
-    log:printDebug("[OpenFGC] No consent found for session key", sessionDataKeyConsent = sessionDataKeyConsent);
     return ();
 }
 
-// Fetches approved scopes from the OpenFGC consent record.
-// Looks in authorizations[].resources.scopes for scope-authorization entries.
-isolated function getApprovedScopesByConsentId(string consentId) returns string[]|error {
-    string path = string `/consents/${getEncodedUri(consentId)}`;
-    log:printDebug("[OpenFGC] GET consent by ID", path = path);
-    http:Response response = check openfgcClient->get(path, {
-        "org-id": orgId,
-        "TPP-client-id": tppClientId
-    });
-    log:printDebug("[OpenFGC] GET consent by ID response", statusCode = response.statusCode);
+// Looks up the consentId for the given sessionDataKeyConsent in the IS consent management API.
+// consent-app-bff stores the key as the consent property `sessionDataKeyConsent`.
+// Returns () if no ACTIVE consent found (caller should treat as SUCCESS with no operations).
+isolated function getConsentIdBySessionKey(string sessionDataKeyConsent) returns string?|error {
+    string filter = string `properties.sessionDataKeyConsent eq ${sessionDataKeyConsent}`;
+    string path = string `/consents?filter=${getEncodedUri(filter)}&state=ACTIVE`;
+    log:printDebug("[Consent] GET consent by session key", path = path);
+    http:Response response = check getFromConsentApi(path);
+    log:printDebug("[Consent] GET consent by session key response", statusCode = response.statusCode);
 
     if response.statusCode < 200 || response.statusCode >= 300 {
         string|error bodyResult = response.getTextPayload();
         string body = bodyResult is string ? bodyResult : "";
-        log:printError("[OpenFGC] GET consent by ID failed", statusCode = response.statusCode, body = body);
-        return error(string `OpenFGC consent lookup returned ${response.statusCode}: ${body}`);
+        log:printError("[Consent] GET consent by session key failed", statusCode = response.statusCode, body = body);
+        return error(string `Consent lookup returned ${response.statusCode}: ${body}`);
     }
 
     json payload = check response.getJsonPayload();
-    log:printDebug("[OpenFGC] GET consent by ID body", body = payload.toJsonString());
+    log:printDebug("[Consent] GET consent by session key body", body = payload.toJsonString());
+    if payload is map<json> {
+        json consents = payload["Consents"] ?: [];
+        if consents is json[] {
+            foreach json c in consents {
+                if c is map<json> {
+                    json id = c["id"] ?: ();
+                    json state = c["state"] ?: "ACTIVE";
+                    if id is string && id != "" && state == "ACTIVE" {
+                        log:printDebug("[Consent] Resolved consentId", consentId = id);
+                        return id;
+                    }
+                }
+            }
+        }
+    }
+    log:printDebug("[Consent] No consent found for session key", sessionDataKeyConsent = sessionDataKeyConsent);
+    return ();
+}
+
+// Fetches approved scopes from the IS consent record (GET /consents/{id}).
+// Scopes are read from the `approvedScopes` consent property (space separated), and, for
+// compatibility with element-based consents, from the names of consented purpose elements.
+isolated function getApprovedScopesByConsentId(string consentId) returns string[]|error {
+    string path = string `/consents/${getEncodedUri(consentId)}`;
+    log:printDebug("[Consent] GET consent by ID", path = path);
+    http:Response response = check getFromConsentApi(path);
+    log:printDebug("[Consent] GET consent by ID response", statusCode = response.statusCode);
+
+    if response.statusCode < 200 || response.statusCode >= 300 {
+        string|error bodyResult = response.getTextPayload();
+        string body = bodyResult is string ? bodyResult : "";
+        log:printError("[Consent] GET consent by ID failed", statusCode = response.statusCode, body = body);
+        return error(string `Consent lookup returned ${response.statusCode}: ${body}`);
+    }
+
+    json payload = check response.getJsonPayload();
+    log:printDebug("[Consent] GET consent by ID body", body = payload.toJsonString());
     if !(payload is map<json>) {
         return [];
     }
-
-    json authorizations = payload["authorizations"] ?: [];
-    if !(authorizations is json[]) {
+    json state = payload["state"] ?: "ACTIVE";
+    if state != "ACTIVE" {
+        log:printDebug("[Consent] Consent is not ACTIVE", consentId = consentId, state = state.toString());
         return [];
     }
 
     string[] scopes = [];
-    foreach json auth in authorizations {
-        if auth is map<json> {
-            json resources = auth["resources"] ?: {};
-            if resources is map<json> {
-                json rawScopes = resources["scopes"] ?: [];
-                if rawScopes is json[] {
-                    foreach json s in rawScopes {
-                        if s is string {
-                            scopes.push(s);
+    json properties = payload["properties"] ?: {};
+    if properties is map<json> {
+        json raw = properties[APPROVED_SCOPES_PROPERTY] ?: "";
+        if raw is string {
+            foreach string s in re `\s+`.split(raw.trim()) {
+                if s != "" && scopes.indexOf(s) is () {
+                    scopes.push(s);
+                }
+            }
+        }
+    }
+    json purposes = payload["purposes"] ?: [];
+    if purposes is json[] {
+        foreach json p in purposes {
+            if p is map<json> {
+                json elements = p["elements"] ?: [];
+                if elements is json[] {
+                    foreach json e in elements {
+                        if e is map<json> {
+                            json n = e["name"] ?: "";
+                            if n is string && n != "" && scopes.indexOf(n) is () {
+                                scopes.push(n);
+                            }
                         }
                     }
                 }
             }
         }
     }
-    log:printDebug("[OpenFGC] Approved scopes extracted", scopes = scopes.toString());
+    log:printDebug("[Consent] Approved scopes extracted", scopes = scopes.toString());
     return scopes;
 }
 
@@ -135,9 +199,9 @@ isolated function buildOAuth2SecureSocket() returns oauth2:SecureSocket? {
     return ();
 }
 
-// Returns a bearer token for SCIM.
+// Returns a bearer token for the management application (SCIM + consent management APIs).
 // Returns the cached token if still valid; otherwise fetches a new one and caches it for 50 min.
-isolated function getScimToken() returns string|error {
+isolated function getManagementToken() returns string|error {
     int nowEpoch = time:utcNow()[0];
     lock {
         var cached = _scimTokenCache;
@@ -151,7 +215,7 @@ isolated function getScimToken() returns string|error {
         tokenUrl: tokenUrl,
         clientId: scimClientId,
         clientSecret: scimClientSecret,
-        scopes: ["internal_user_mgt_view"]
+        scopes: ["internal_user_mgt_view", "internal_consent_mgt_consent_view"]
     };
     oauth2:SecureSocket? secureSocket = buildOAuth2SecureSocket();
     if secureSocket != () {
@@ -174,7 +238,7 @@ isolated function fetchScimUser(string userId) returns json|error {
     }
 
     log:printDebug("[SCIM] Fetching token via client credentials");
-    string token = check getScimToken();
+    string token = check getManagementToken();
     http:Client scimClient = check getOrCreateIsClient();
     string path = scimApiPath + "/" + getEncodedUri(userId);
     log:printDebug("[SCIM] GET user request", path = path);

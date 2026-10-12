@@ -1,17 +1,15 @@
 hostname = "localhost"
 port = 9093
 
-# Mock OpenFGC runs in-process on port 9296
-openfgcBaseUrl = "http://localhost:9296"
-orgId = "test-org"
-tppClientId = "test-tpp-client"
+# Mock IS consent management API runs in-process on port 9296
+isBaseUrl = "http://localhost:9296"
+consentApiPath = "/api/identity/consent-mgt/v2.0"
 
-# Mock SCIM runs in-process on port 9297 (also serves /oauth2/token for client credentials)
-scimApiBaseUrl = "http://localhost:9297"
+# Mock SCIM runs in-process on port 9297 and serves /oauth2/token for client credentials
 scimApiPath = "/scim2/Users"
 scimClientId = "test-client-id"
 scimClientSecret = "test-client-secret"
-scimTokenEndpoint = ""
+scimTokenEndpoint = "http://localhost:9297/oauth2/token"
 scimPatientGroupName = "patient"
 fhirUserAttributeName = "fhirUser"
 

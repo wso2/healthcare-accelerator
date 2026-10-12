@@ -17,13 +17,16 @@
 import ballerina/http;
 import ballerina/jwt;
 import ballerina/log;
+import ballerina/time;
 import ballerina/url;
 
 listener http:Listener consentBffListener = new (port, {host: hostname});
 
 function init() returns error? {
-    check fetchAndCachePurposes();
-    log:printInfo("Consent purpose cache initialized successfully");
+    if fetchPurposesOnStartup {
+        check fetchAndCachePurposes();
+        log:printInfo("Consent purpose cache initialized successfully");
+    }
 }
 
 // Resolves the effective consent flow for a given spId.
@@ -219,106 +222,150 @@ isolated function getScimPatients() returns ConsentPatient[]|error {
     return patients;
 }
 
-// Looks up an existing active consent for the user in OpenFGC.
-isolated function getExistingConsent(string userId, string effectiveFlow) returns ExistingConsentData?|error {
-    string searchPath = string `/consents?userIds=${userId}&clientIds=${tppClientId}&consentStatuses=ACTIVE,CREATED&limit=1`;
-    map<string|string[]> headers = {"org-id": orgId, "TPP-client-id": tppClientId};
+// Property keys stored on every consent created by this service. The scope flow keeps the
+// approved scopes in `approvedScopes` (space-separated) because the IS consent model has no
+// per-authorization resources; iam-service-extensions reads them back by sessionDataKeyConsent.
+const string PROP_SESSION_KEY = "sessionDataKeyConsent";
+const string PROP_SP_ID = "spId";
+const string PROP_APPLICATION = "application";
+// OAuth client_id of the requesting app. IS does not pass sessionDataKeyConsent to the token flow, so
+// iam-service-extensions finds the consent again with the user id and client_id of the token request.
+const string PROP_CLIENT_ID = "clientId";
+const string PROP_APPROVED_SCOPES = "approvedScopes";
+const string PROP_EXPIRY_OPTION = "consentExpiryOption";
 
-    log:printDebug("[OpenFGC] GET existing consent request", path = searchPath);
-    http:Response searchResp = check openfgcClient->get(searchPath, headers);
-    log:printDebug("[OpenFGC] GET existing consent response", statusCode = searchResp.statusCode);
-    if searchResp.statusCode != http:STATUS_OK {
-        string|error body = searchResp.getTextPayload();
+// Lists the ids of the user's ACTIVE consents for this service in WSO2 IS.
+isolated function listActiveConsentIds(string userId, int 'limit) returns string[]|error {
+    string encodedUser = check url:encode(userId, "UTF-8");
+    string encodedService = check url:encode(serviceId, "UTF-8");
+    string path = string `/consents?userId=${encodedUser}&relation=SUBJECT&serviceId=${encodedService}&state=ACTIVE&limit=${'limit}`;
+    http:Response resp = check callConsentApi(http:GET, path);
+    if resp.statusCode != http:STATUS_OK {
+        string|error body = resp.getTextPayload();
         string bodyStr = body is string ? body : "";
-        log:printWarn("[OpenFGC] GET existing consent non-200", statusCode = searchResp.statusCode, body = bodyStr);
+        return error(string `Consent lookup failed: HTTP ${resp.statusCode}: ${bodyStr}`);
+    }
+    IsConsentListResponse list = check (check resp.getJsonPayload()).cloneWithType();
+    string[] ids = [];
+    foreach IsConsentSummary c in list.Consents {
+        ids.push(c.id);
+    }
+    return ids;
+}
+
+// Revokes the user's ACTIVE consents for this service, except `keepConsentId` (if given).
+// WSO2 IS consents cannot be replaced in place, so re-submission = create new + revoke old.
+isolated function revokeActiveConsents(string userId, string? keepConsentId) returns error? {
+    string[] ids = check listActiveConsentIds(userId, 100);
+    foreach string id in ids {
+        if id == keepConsentId {
+            continue;
+        }
+        http:Response resp = check callConsentApi(http:POST, string `/consents/${id}/revoke`);
+        if resp.statusCode != http:STATUS_NO_CONTENT {
+            string|error body = resp.getTextPayload();
+            string bodyStr = body is string ? body : "";
+            return error(string `Consent revoke failed: HTTP ${resp.statusCode}: ${bodyStr}`);
+        }
+        log:printDebug("[Consent API] Revoked previous consent", consentId = id);
+    }
+}
+
+// Creates a consent in WSO2 IS and returns its id.
+isolated function createConsent(IsConsentCreateRequest payload) returns string|error {
+    log:printDebug("[Consent API] POST consent request", payload = payload.toJson().toJsonString());
+    http:Response resp = check callConsentApi(http:POST, "/consents", payload.toJson());
+    if resp.statusCode != http:STATUS_CREATED {
+        string|error body = resp.getTextPayload();
+        string bodyStr = body is string ? body : "";
+        log:printError("Consent creation failed", statusCode = resp.statusCode, body = bodyStr);
+        return error(string `Consent creation failed: HTTP ${resp.statusCode}: ${bodyStr}`);
+    }
+    IsConsentCreatedResponse created = check (check resp.getJsonPayload()).cloneWithType();
+    return created.id;
+}
+
+// Converts a validity in seconds to an absolute expiry in epoch milliseconds.
+isolated function expiryFromSeconds(int seconds) returns int {
+    return (time:utcNow()[0] + seconds) * 1000;
+}
+
+// Looks up an existing active consent for the user in WSO2 IS.
+isolated function getExistingConsent(string userId, string effectiveFlow) returns ExistingConsentData?|error {
+    string[]|error ids = listActiveConsentIds(userId, 1);
+    if ids is error {
+        log:printWarn("[Consent API] Existing consent lookup failed", 'error = ids);
         return ();
     }
-
-    json searchJson = check searchResp.getJsonPayload();
-    log:printDebug("[OpenFGC] GET existing consent body", body = searchJson.toJsonString());
-    OpenFGCSearchResponse searchResult = check searchJson.cloneWithType();
-
-    if searchResult.data.length() == 0 {
+    if ids.length() == 0 {
         return ();
     }
+    string consentId = ids[0];
 
-    OpenFGCSearchRecord existing = searchResult.data[0];
-    string consentId = existing.id;
+    http:Response resp = check callConsentApi(http:GET, string `/consents/${consentId}`);
+    if resp.statusCode != http:STATUS_OK {
+        string|error body = resp.getTextPayload();
+        string bodyStr = body is string ? body : "";
+        log:printWarn("[Consent API] GET consent non-200", statusCode = resp.statusCode, body = bodyStr);
+        return ();
+    }
+    json detailJson = check resp.getJsonPayload();
+    log:printDebug("[Consent API] GET consent body", body = detailJson.toJsonString());
+    IsConsentDetail existing = check detailJson.cloneWithType();
+    map<string> props = existing.properties ?: {};
 
-    // Scope flow: extract approved scopes from authorizations[0].resources.scopes
+    // Scope flow: approved scopes and chosen expiry are kept in consent properties
     if effectiveFlow == "scope" {
         string[] approvedScopes = [];
-        OpenFGCSearchAuthorization[]? auths = existing.authorizations;
-        if auths != () && auths.length() > 0 {
-            json scopesField = auths[0].resources?.scopes ?: [];
-            if scopesField is json[] {
-                foreach json s in scopesField {
-                    approvedScopes.push(s.toString());
-                }
+        string scopesStr = props[PROP_APPROVED_SCOPES] ?: "";
+        foreach string sc in re ` `.split(scopesStr) {
+            if sc != "" {
+                approvedScopes.push(sc);
             }
         }
-        string? consentExpiryOption = ();
-        string? expirySecondsStr = existing.attributes["consentExpirySeconds"];
-        if expirySecondsStr == "86400" {
-            consentExpiryOption = "24h";
-        } else if expirySecondsStr == "7776000" {
-            consentExpiryOption = "3months";
-        } else if expirySecondsStr == "0" {
-            consentExpiryOption = "never";
-        }
-        return {consentId, validityTime: existing.validityTime, consentExpiryOption, approvedScopes, consentedPurposeNames: [], consentedElements: {}};
+        string? consentExpiryOption = props[PROP_EXPIRY_OPTION];
+        return {consentId, consentExpiryOption, approvedScopes, consentedPurposeNames: [], consentedElements: {}};
     }
 
     // Purpose flow: extract previously consented purposes and elements
     string[] consentedPurposeNames = [];
     map<string[]> consentedElements = {};
 
-    OpenFGCSearchPurpose[]? existingPurposes = existing.purposes;
-    if existingPurposes != () {
-        foreach OpenFGCSearchPurpose p in existingPurposes {
-            string[] approvedElems = [];
-            foreach OpenFGCSearchElement e in p.elements {
-                if e.isUserApproved {
-                    approvedElems.push(e.name);
+    foreach IsConsentedPurpose p in existing.purposes {
+        string[] approvedElems = [];
+        foreach IsConsentedElement e in p.elements {
+            approvedElems.push(e.name);
+        }
+        if approvedElems.length() == 0 {
+            continue;
+        }
+        consentedElements[p.name] = approvedElems;
+
+        if showConsentElements {
+            consentedPurposeNames.push(p.name);
+        } else {
+            // Purpose-only mode: only pre-check if ALL cached elements were approved
+            boolean allApproved = true;
+            string[] configElements = [];
+            lock {
+                CachedPurpose? cp = purposeCache[p.name];
+                if cp != () {
+                    configElements = cp.elementNames.clone();
                 }
             }
-            if approvedElems.length() > 0 {
-                consentedElements[p.name] = approvedElems;
-
-                if showConsentElements {
-                    consentedPurposeNames.push(p.name);
-                } else {
-                    // Purpose-only mode: only pre-check if ALL cached elements were approved
-                    boolean allApproved = true;
-                    string[] configElements = [];
-                    lock {
-                        CachedPurpose? cp = purposeCache[p.name];
-                        if cp != () {
-                            configElements = cp.elementNames.clone();
-                        }
-                    }
-                    foreach string configEl in configElements {
-                        boolean found = false;
-                        foreach string approvedEl in approvedElems {
-                            if approvedEl == configEl {
-                                found = true;
-                                break;
-                            }
-                        }
-                        if !found {
-                            allApproved = false;
-                            break;
-                        }
-                    }
-                    if allApproved {
-                        consentedPurposeNames.push(p.name);
-                    }
+            foreach string configEl in configElements {
+                if approvedElems.indexOf(configEl) is () {
+                    allApproved = false;
+                    break;
                 }
+            }
+            if allApproved {
+                consentedPurposeNames.push(p.name);
             }
         }
     }
 
-    return {consentId, validityTime: existing.validityTime, approvedScopes: [], consentedPurposeNames, consentedElements};
+    return {consentId, approvedScopes: [], consentedPurposeNames, consentedElements};
 }
 
 @http:ServiceConfig {
@@ -366,7 +413,7 @@ service / on consentBffListener {
 
         log:printDebug("Consent key resolved", loggedInUser = loggedInUser, application = application, scope = scopeStr);
 
-        // Step 2: SCIM user lookup (both flows) + OpenFGC existing consent (if singleConsentPerUser)
+        // Step 2: SCIM user lookup (both flows) + existing consent (if singleConsentPerUser)
         future<ScimUserInfo|error> userFuture = start getScimUser(loggedInUser);
         future<ExistingConsentData?|error>? existingConsentFuture = ();
         if singleConsentPerUser {
@@ -398,6 +445,7 @@ service / on consentBffListener {
             },
             customClaims: {
                 "app": application,
+                "cid": extractQueryParam(consentKeyData.spQueryParams ?: "", "client_id"),
                 "sdkc": sessionDataKeyConsent
             }
         };
@@ -500,6 +548,7 @@ service / on consentBffListener {
 
         } else {
             // Purpose flow
+            check ensurePurposesCached();
             ConsentPurpose[] purposeList = [];
             foreach PurposeConsentConfig p in purposeConsent {
                 string[] elementNames = [];
@@ -552,7 +601,7 @@ service / on consentBffListener {
         }
     }
 
-    # Validates the consent token and stores the user's decision in OpenFGC.
+    # Validates the consent token and stores the user's decision in WSO2 IS.
     # The UI form-POSTs directly to the IDP authorize URL after this call succeeds.
     # + submission - The consent decision payload including the JWT consent token
     # + return - Submission status, or an error if the token is invalid
@@ -581,6 +630,7 @@ service / on consentBffListener {
         string trustedUser = sub;
         string trustedApp = (tokenPayload["app"] ?: "").toString();
         string tokenSdkc = (tokenPayload["sdkc"] ?: "").toString();
+        string trustedClientId = (tokenPayload["cid"] ?: "").toString();
 
         if tokenSdkc != submission.sessionDataKeyConsent {
             return error("Consent token session mismatch");
@@ -597,7 +647,7 @@ service / on consentBffListener {
         ConsentedPurpose[]? consentedPurposes = submission.consentedPurposes;
 
         if approvedScopes != () || hiddenScopes != () {
-            // Scope flow: store all approved + hidden scopes in authorizations[].resources.scopes
+            // Scope flow: store all approved + hidden scopes in the consent properties
             log:printInfo("Processing consent submission for scope flow");
             int? scopeValidityTime = ();
             string? expiryOpt = submission.consentExpiryOption;
@@ -645,155 +695,129 @@ service / on consentBffListener {
                 }
             }
 
-            string scopeElementName = "scope-access";
+            check ensurePurposesCached();
+            // Bind every element of the scope purpose (the SMART scopes themselves are kept in properties)
+            string scopePurposeId = "";
+            string[] scopeElementIds = [];
             lock {
                 CachedPurpose? cached = purposeCache[scopeConsent.purposeName];
-                if cached != () && cached.elementNames.length() > 0 {
-                    scopeElementName = cached.elementNames[0];
+                if cached != () {
+                    scopePurposeId = cached.id;
+                    scopeElementIds = cached.elementIds.toArray().clone();
                 }
             }
+            IsConsentElementRef[] scopeElements = from string elId in scopeElementIds select {id: elId};
+            if scopePurposeId == "" || scopeElements.length() == 0 {
+                return error(string `Consent purpose '${scopeConsent.purposeName}' has no elements to bind`);
+            }
 
-            OpenFGCConsentCreatePayload payload = {
-                'type: consentType,
-                purposes: [{
-                    name: scopeConsent.purposeName,
-                    elements: [{name: scopeElementName, isUserApproved: true}]
-                }],
-                authorizations: [{
-                    userId: trustedUser,
-                    'type: "scope-authorization",
-                    status: "APPROVED",
-                    resources: {spId: submission.spId, application: trustedApp, scopes: scopesToStore}
-                }],
-                validityTime: scopeValidityTime,
-                attributes: {
-                    "sessionDataKeyConsent": submission.sessionDataKeyConsent,
-                    "consentExpirySeconds": (scopeValidityTime is int ? scopeValidityTime : 0).toString()
-                }
+            map<string> properties = {
+                [PROP_SESSION_KEY]: submission.sessionDataKeyConsent,
+                [PROP_SP_ID]: submission.spId,
+                [PROP_APPLICATION]: trustedApp,
+                [PROP_APPROVED_SCOPES]: string:'join(" ", ...scopesToStore)
             };
+            if expiryOpt is string {
+                properties[PROP_EXPIRY_OPTION] = expiryOpt;
+            }
+            if trustedClientId != "" {
+                properties[PROP_CLIENT_ID] = trustedClientId;
+            }
 
-            http:Request req = new;
-            req.setJsonPayload(payload.toJson());
-            req.addHeader("org-id", orgId);
-            req.addHeader("TPP-client-id", tppClientId);
+            IsConsentCreateRequest payload = {
+                subjectId: trustedUser,
+                serviceId: serviceId,
+                purposes: [{id: scopePurposeId, elements: scopeElements}],
+                properties: properties
+            };
+            if scopeValidityTime is int {
+                payload.expiryTime = expiryFromSeconds(scopeValidityTime);
+            }
 
-            log:printDebug("[OpenFGC] POST/PUT scope consent request", payload = payload.toJson().toJsonString());
-            string? existingScopeId = singleConsentPerUser ? submission.existingConsentId : ();
-            if existingScopeId != () {
-                log:printDebug("[OpenFGC] PUT scope consent (update)", consentId = existingScopeId);
-                http:Response updateResp = check openfgcClient->put(string `/consents/${existingScopeId}`, req);
-                log:printDebug("[OpenFGC] PUT scope consent response", statusCode = updateResp.statusCode);
-                if updateResp.statusCode != http:STATUS_OK {
-                    string|error updateBody = updateResp.getTextPayload();
-                    string updateBodyStr = updateBody is string ? updateBody : "";
-                    log:printError("OpenFGC scope consent update failed", statusCode = updateResp.statusCode, body = updateBodyStr);
-                    return error(string `OpenFGC consent update failed: HTTP ${updateResp.statusCode}: ${updateBodyStr}`);
-                }
-                log:printDebug("Scope consent updated in OpenFGC", consentId = existingScopeId);
-            } else {
-                log:printDebug("[OpenFGC] POST scope consent (create)");
-                http:Response consentResp = check openfgcClient->post("/consents", req);
-                log:printDebug("[OpenFGC] POST scope consent response", statusCode = consentResp.statusCode);
-                if consentResp.statusCode != http:STATUS_CREATED {
-                    string|error consentBody = consentResp.getTextPayload();
-                    string consentBodyStr = consentBody is string ? consentBody : "";
-                    log:printError("OpenFGC scope consent creation failed", statusCode = consentResp.statusCode, body = consentBodyStr);
-                    return error(string `OpenFGC consent creation failed: HTTP ${consentResp.statusCode}: ${consentBodyStr}`);
-                }
-                log:printDebug("Scope consent stored in OpenFGC");
+            string newConsentId = check createConsent(payload);
+            log:printDebug("Scope consent stored in WSO2 IS", consentId = newConsentId);
+            if singleConsentPerUser {
+                check revokeActiveConsents(trustedUser, newConsentId);
             }
 
         } else if consentedPurposes != () {
-            // Purpose flow: store element-level approvals
-            OpenFGCConsentPurposeItem[] purposeItems = [];
+            check ensurePurposesCached();
+            // Purpose flow: bind only the approved elements of each purpose (the IS consent model
+            // records approvals by presence — an element not listed is not consented)
+            IsConsentPurposeBinding[] bindings = [];
             foreach PurposeConsentConfig purposeConfig in purposeConsent {
-                OpenFGCConsentElementApproval[] elements = [];
                 string purposeName = purposeConfig.purposeName;
 
+                string purposeId = "";
                 string[] cachedElementNames = [];
+                map<string> cachedElementIds = {};
                 lock {
                     CachedPurpose? cached = purposeCache[purposeName];
                     if cached != () {
+                        purposeId = cached.id;
                         cachedElementNames = cached.elementNames.clone();
+                        cachedElementIds = cached.elementIds.clone();
                     }
                 }
 
-                if showConsentElements {
-                    string[] approvedElementNames = [];
-                    foreach ConsentedPurpose cp in consentedPurposes {
-                        if cp.purposeName == purposeName {
-                            approvedElementNames = cp.consentedElements;
-                            break;
-                        }
+                string[] approvedElementNames = [];
+                foreach ConsentedPurpose cp in consentedPurposes {
+                    if cp.purposeName == purposeName {
+                        approvedElementNames = cp.consentedElements;
+                        break;
                     }
-                    foreach string elName in cachedElementNames {
-                        boolean isApproved = false;
-                        foreach string approvedEl in approvedElementNames {
-                            if approvedEl == elName {
-                                isApproved = true;
-                                break;
-                            }
-                        }
-                        elements.push({name: elName, isUserApproved: isApproved});
-                    }
-                } else {
-                    boolean purposeConsented = false;
-                    foreach ConsentedPurpose cp in consentedPurposes {
-                        if cp.purposeName == purposeName {
-                            purposeConsented = true;
-                            break;
-                        }
-                    }
-                    foreach string elName in cachedElementNames {
-                        elements.push({name: elName, isUserApproved: purposeConsented});
+                }
+                boolean purposeConsented = false;
+                foreach ConsentedPurpose cp in consentedPurposes {
+                    if cp.purposeName == purposeName {
+                        purposeConsented = true;
+                        break;
                     }
                 }
 
-                purposeItems.push({name: purposeConfig.purposeName, elements: elements});
+                IsConsentElementRef[] elements = [];
+                foreach string elName in cachedElementNames {
+                    boolean isApproved = showConsentElements
+                        ? approvedElementNames.indexOf(elName) !is ()
+                        : purposeConsented;
+                    string? elId = cachedElementIds[elName];
+                    if isApproved && elId is string {
+                        elements.push({id: elId});
+                    }
+                }
+                if elements.length() > 0 {
+                    bindings.push({id: purposeId, elements: elements});
+                }
             }
 
-            OpenFGCConsentCreatePayload payload = {
-                'type: consentType,
-                purposes: purposeItems,
-                authorizations: [{
-                    userId: trustedUser,
-                    'type: "authorisation",
-                    status: "APPROVED",
-                    resources: {spId: submission.spId, application: trustedApp}
-                }],
-                validityTime: scopeConsentValidityTime,
-                attributes: {"sessionDataKeyConsent": submission.sessionDataKeyConsent}
+            if bindings.length() == 0 {
+                log:printInfo("No purposes consented — no consent record created");
+                if singleConsentPerUser {
+                    check revokeActiveConsents(trustedUser, ());
+                }
+                return {status: "success", message: "Consent approved successfully"};
+            }
+
+            map<string> purposeProperties = {
+                [PROP_SESSION_KEY]: submission.sessionDataKeyConsent,
+                [PROP_SP_ID]: submission.spId,
+                [PROP_APPLICATION]: trustedApp
+            };
+            if trustedClientId != "" {
+                purposeProperties[PROP_CLIENT_ID] = trustedClientId;
+            }
+            IsConsentCreateRequest payload = {
+                subjectId: trustedUser,
+                serviceId: serviceId,
+                purposes: bindings,
+                expiryTime: expiryFromSeconds(scopeConsentValidityTime),
+                properties: purposeProperties
             };
 
-            http:Request req = new;
-            req.setJsonPayload(payload.toJson());
-            req.addHeader("org-id", orgId);
-            req.addHeader("TPP-client-id", tppClientId);
-
-            log:printDebug("[OpenFGC] POST/PUT purpose consent request", payload = payload.toJson().toJsonString());
-            string? existingId = singleConsentPerUser ? submission.existingConsentId : ();
-            if existingId != () {
-                log:printDebug("[OpenFGC] PUT purpose consent (update)", consentId = existingId);
-                http:Response updateResp = check openfgcClient->put(string `/consents/${existingId}`, req);
-                log:printDebug("[OpenFGC] PUT purpose consent response", statusCode = updateResp.statusCode);
-                if updateResp.statusCode != http:STATUS_OK {
-                    string|error updateBody = updateResp.getTextPayload();
-                    string updateBodyStr = updateBody is string ? updateBody : "";
-                    log:printError("OpenFGC consent update failed", statusCode = updateResp.statusCode, body = updateBodyStr);
-                    return error(string `OpenFGC consent update failed: HTTP ${updateResp.statusCode}: ${updateBodyStr}`);
-                }
-                log:printDebug("Purpose consent updated in OpenFGC", consentId = existingId);
-            } else {
-                log:printDebug("[OpenFGC] POST purpose consent (create)");
-                http:Response createResp = check openfgcClient->post("/consents", req);
-                log:printDebug("[OpenFGC] POST purpose consent response", statusCode = createResp.statusCode);
-                if createResp.statusCode != http:STATUS_CREATED {
-                    string|error createBody = createResp.getTextPayload();
-                    string createBodyStr = createBody is string ? createBody : "";
-                    log:printError("OpenFGC purpose consent creation failed", statusCode = createResp.statusCode, body = createBodyStr);
-                    return error(string `OpenFGC consent creation failed: HTTP ${createResp.statusCode}: ${createBodyStr}`);
-                }
-                log:printDebug("Purpose consent created in OpenFGC");
+            string newConsentId = check createConsent(payload);
+            log:printDebug("Purpose consent created in WSO2 IS", consentId = newConsentId);
+            if singleConsentPerUser {
+                check revokeActiveConsents(trustedUser, newConsentId);
             }
         }
 

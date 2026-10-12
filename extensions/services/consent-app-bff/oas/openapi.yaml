@@ -45,7 +45,7 @@ paths:
   /submit-consent:
     post:
       summary: >-
-        Validates the consent token and stores the user's decision in OpenFGC.
+        Validates the consent token and stores the user's decision in WSO2 IS.
 
         The UI form-POSTs directly to the IDP authorize URL after this call
         succeeds.
