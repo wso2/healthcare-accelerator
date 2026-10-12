@@ -1,19 +1,19 @@
 Java 21+
-WSO2 IS 7.3.0
+WSO2 IS 7.3.0 (update level 12 or higher, required for Consent Management API v2)
 WSO2 APIM 4.6.0
-wso2-hcam-accelerator-2.0.0
-wso2-hcis-accelerator-2.0.0
+wso2-hcam-accelerator-2.1.1
+wso2-hcis-accelerator-2.1.1
 
 setup
 ----
 download and update IS and APIM
+Note: IS must be updated to update level 12 at least to support Consent Management API v2
 download and update healthcae accelerators
 copy hcam accelerator to apim home
 copy hcis accelerator to is home
 from product home run
-Note if you are runnning a non GA release of HCIS, run with patch flag
-- ./wso2-hcis-accelerator-2.0.0/merge.sh --patch
-- ./wso2-hcam-accelerator-2.0.0/merge.sh
+- ./wso2-hcis-accelerator-2.1.1/merge.sh
+- ./wso2-hcam-accelerator-2.1.1/merge.sh
 
 exchange certificates between IS and APIM
 
